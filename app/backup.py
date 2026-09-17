@@ -58,7 +58,7 @@ def test_destination(path: str) -> str:
 
 
 def prune(folder: Path, keep: int) -> None:
-    files = sorted(folder.glob("strait-*.db"))
+    files = sorted(f for f in folder.glob("strait-*.db") if "pre-restore" not in f.name)
     for f in files[:-keep] if keep > 0 else files:
         f.unlink()
 
@@ -128,3 +128,61 @@ def due() -> bool:
 
 def tick() -> str:
     return run() if due() else "not due"
+
+
+# Restore
+
+REQUIRED_TABLES = {"items", "pla_daily", "scores", "job_status"}
+
+
+def list_snapshots() -> list[dict]:
+    """Snapshots in data\backups and at the destination, newest first."""
+    folders = [LOCAL_DIR]
+    dest = settings()["backup_dir"]
+    if dest:
+        folders += [Path(dest) / sub for sub in ("daily", "weekly", "monthly")]
+    out = []
+    for folder in folders:
+        try:
+            files = list(folder.glob("strait-*.db"))
+        except OSError:
+            continue
+        for f in files:
+            st = f.stat()
+            out.append({"path": str(f), "size_mb": round(st.st_size / 1_048_576, 1),
+                        "when": datetime.fromtimestamp(st.st_mtime, LOCAL_TZ).strftime("%Y-%m-%d %H:%M"),
+                        "where": "local" if folder == LOCAL_DIR else folder.name})
+    return sorted(out, key=lambda s: s["when"], reverse=True)
+
+
+def restore(path: str) -> str:
+    """Copy a snapshot's pages into the live database. Reversible: a safety snapshot is taken first."""
+    import sqlite3
+    from app.scheduler import scheduler
+    src_path = Path(path.strip())
+    if not src_path.is_file():
+        raise ValueError(f"not a file: {src_path}")
+    connect_share(src_path)
+    src = sqlite3.connect(f"file:{src_path}?mode=ro", uri=True)
+    try:
+        if src.execute("PRAGMA integrity_check").fetchone()[0] != "ok":
+            raise ValueError("snapshot failed integrity check")
+        tables = {r[0] for r in src.execute("SELECT name FROM sqlite_master WHERE type = 'table'")}
+        if not REQUIRED_TABLES <= tables:
+            raise ValueError(f"snapshot is missing tables: {', '.join(sorted(REQUIRED_TABLES - tables))}")
+        with _lock:
+            scheduler.pause()
+            try:
+                LOCAL_DIR.mkdir(exist_ok=True)
+                safety = LOCAL_DIR / f"strait-{datetime.now(LOCAL_TZ):%Y%m%d-%H%M%S}-pre-restore.db"
+                with closing(db.connect()) as live:
+                    live.execute("VACUUM INTO ?", (str(safety),))
+                    src.backup(live)
+            finally:
+                scheduler.resume()
+    finally:
+        src.close()
+    size = round(src_path.stat().st_size / 1_048_576, 1)
+    msg = f"restored from {src_path} ({size} MB); previous database kept as {safety.name}"
+    record(str(src_path), size, True, msg)
+    return msg

@@ -160,7 +160,7 @@ def backup_ctx() -> dict:
 
 @app.get("/backup")
 def backup_page(request: Request):
-    return render(request, "backup.html", "Backup", cfg=backup.settings(), **backup_ctx())
+    return render(request, "backup.html", "Backup", cfg=backup.settings(), snapshots=backup.list_snapshots(), **backup_ctx())
 
 
 @app.get("/partials/backup")
@@ -197,6 +197,15 @@ def backup_run(request: Request):
     htmx_only(request)
     try:
         return "Done: " + backup.run(manual=True)
+    except Exception as e:
+        return f"Failed: {e}"
+
+
+@app.post("/backup/restore", response_class=PlainTextResponse)
+def backup_restore(request: Request, snapshot: str = Form(""), path: str = Form("")):
+    htmx_only(request)
+    try:
+        return "Done: " + backup.restore(path.strip() or snapshot)
     except Exception as e:
         return f"Failed: {e}"
 

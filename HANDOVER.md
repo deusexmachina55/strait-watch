@@ -4,7 +4,7 @@ Read this first in a new session, after CLAUDE.md, SPEC.md and DECISIONS.md. It 
 
 ## Current state (2026-09-18, 01:30 SGT)
 - Phases 1 to 4, the map (Phase 2b with AIS and ADS-B) and the watchdog are live on the service since the 01:14 reboot. All jobs green: 57 zones parsed on first run, AIS streaming (about 60 vessels per 30 min), ADS-B polling, translations caught up.
-- Backup tab (Phase 5) built and tested on a copy, committed, needs a restart to go live. The user sets destination (drive or UNC path), schedule and retention in the browser; settings live in the `settings` table because the service cannot write `config.toml`. A local drive folder needs Modify rights for `svc-straitwatch` (icacls); a UNC path needs `BACKUP_SMB_USER` and `BACKUP_SMB_PASS` in `.env`. Nothing runs until the user enables it and a destination passes "Test destination".
+- Backup tab (Phase 5) built and tested on a copy, committed, needs a restart to go live. The user sets destination (drive or UNC path), schedule and retention in the browser; settings live in the `settings` table because the service cannot write `config.toml`. A local drive folder needs Modify rights for `svc-straitwatch` (icacls); a UNC path needs `BACKUP_SMB_USER` and `BACKUP_SMB_PASS` in `.env`. Nothing runs until the user enables it and a destination passes "Test destination". Restore is on the same page and works without a restart (scheduler paused, integrity check, safety copy, SQLite online backup into the live DB); tested: 100 deleted rows came back.
 - Pending: packaging for install on another PC (thinking only, not built; see "Packaging" below).
 - First morning digest with LLM assessment due 07:30 SGT on 2026-09-18.
 

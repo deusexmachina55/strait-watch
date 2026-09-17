@@ -18,7 +18,8 @@ Phase 2b (map with live AIS and ADS-B layers) and the Phase 5 watchdog are done.
 - Each run writes a `VACUUM INTO` snapshot to `data\backups\` (last 3 kept), then copies it to `<destination>\daily\`, and to `weekly\` or `monthly\` on those days. The `backup` job checks every 5 minutes whether tonight's run is due.
 - Local drive: the service account `svc-straitwatch` needs Modify on the folder, e.g. `icacls "D:\Backups\strait-watch" /grant svc-straitwatch:(OI)(CI)M` from an admin prompt.
 - UNC path: put a NAS user with write access to that share in `.env` as `BACKUP_SMB_USER` and `BACKUP_SMB_PASS`, restart the service. The job runs `net use` before copying.
-- Restore: stop the service, replace `data\strait.db` (delete `strait.db-wal` and `strait.db-shm` if present) with a snapshot, start the service.
+- Restore: on the Backup page, pick a snapshot (local, or from the destination's daily/weekly/monthly folders) or type a path, and press Restore. No restart: collectors pause, the snapshot is integrity-checked, a safety copy of the current database goes to `data\backups\*-pre-restore.db`, the snapshot is copied into the live database with SQLite's online backup API, collectors resume.
+- Fresh install with history: run `setup.ps1`, open the Backup page, set the destination, Test destination, Restore the newest snapshot.
 
 ## Watchdog
 The `watchdog` job (every 30 minutes) sends a Telegram alert when a job has had no successful run within its allowed age (`config.toml` `[watchdog.max_age_hours]`), one alert per job per 12 hours. Alerts are listed in the tripwire log as `watchdog_<job>`.
