@@ -22,6 +22,8 @@ SPEC.md is the spec. This file records decisions made after it was written. Wher
 - Reuters, USNI News, Global Times and Xinhua are read through Google News RSS. Reuters has no public feed, USNI blocks scrapers, the other two feeds are stale.
 - Map (2026-09-18): Leaflet vendored, Esri World Ocean Base tiles (CARTO now requires a key). MSA zones parsed from Chinese-language detail pages only; English-titled entries are dead-link duplicates and are excluded from counts. AIS from aisstream.io, ADS-B from adsb.lol, both free, 7-day position retention.
 - Watchdog (Phase 5 part) shipped with the map: Telegram alert when a job has no success within its allowed age, 12-hour cooldown.
+- Phase 5 backup (2026-09-18): destination, schedule and retention are set in the browser and stored in the database (service cannot write config.toml); restore runs in place via SQLite online backup with a safety copy first. NAS credentials go in .env.
+- Phase 6 briefing (2026-09-18): weekly and monthly LLM briefs from pre-aggregated facts only, same free chain, with a 14-day outlook graded against the index afterwards. Labeled outlook, not forecast. No paid model. Metaculus rejected (needs an account token).
 - Dropped: GDELT Global Frontpage Graph (unmaintained alpha), regional MSA "maritime news" pages (local port news), PLA Eastern Theater Command social media (fragile).
 
 ## Security requirements (apply from Phase 1)
