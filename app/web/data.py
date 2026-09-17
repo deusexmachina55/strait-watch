@@ -2,7 +2,9 @@
 from contextlib import closing
 from datetime import date, datetime, timedelta, timezone
 
-from app import db
+import json
+
+from app import db, geo
 from app.config import DB_PATH, LOCAL_TZ, SETTINGS
 
 GROUPS = SETTINGS["prices"]["groups"]
@@ -44,7 +46,7 @@ def gdelt(days: int = 90, dyad: str = "CHN-TWN") -> dict:
 
 def msa(days: int = 90) -> dict:
     labels = days_back(days)
-    counts = rows("SELECT region, issued_date, COUNT(*) AS n FROM msa_warnings WHERE military = 1 AND issued_date >= ? "
+    counts = rows("SELECT region, issued_date, COUNT(*) AS n FROM msa_warnings WHERE military = 1 AND lang = 'zh' AND issued_date >= ? "
                   "GROUP BY region, issued_date", labels[0])
     regions = [c["region"] for c in SETTINGS["msa"]["channels"]]
     series = {r: dict.fromkeys(labels, 0) for r in regions}
@@ -59,13 +61,14 @@ def msa(days: int = 90) -> dict:
 
 
 def msa_warnings(region: str = "", military_only: bool = True, limit: int = 200) -> list[dict]:
-    sql, params = "SELECT region, number, title, title_en, issued_date, url FROM msa_warnings WHERE 1=1", []
+    sql, params = ("SELECT w.region, w.number, w.title, w.title_en, w.issued_date, w.url, z.sea_area, z.window, z.ok AS mapped "
+                   "FROM msa_warnings w LEFT JOIN msa_zones z ON z.url = w.url WHERE w.lang = 'zh'"), []
     if region:
-        sql += " AND region = ?"
+        sql += " AND w.region = ?"
         params.append(region)
     if military_only:
-        sql += " AND military = 1"
-    sql += " ORDER BY issued_date DESC, number DESC LIMIT ?"
+        sql += " AND w.military = 1"
+    sql += " ORDER BY w.issued_date DESC, w.number DESC LIMIT ?"
     return rows(sql, *params, limit)
 
 
@@ -235,3 +238,72 @@ def llm_usage() -> dict:
               start.isoformat(timespec="seconds"))
     return {"today": sum(r["ok"] + r["failed"] for r in by), "cap": SETTINGS["llm"]["daily_cap"], "providers": by,
             "analyzed": rows("SELECT COUNT(*) AS n FROM item_analysis")[0]["n"]}
+
+
+# Map
+
+PLACES = [  # substring in a Japan MOD or Coast Guard title -> (lat, lon)
+    ("宮古", (24.9, 125.2)), ("与那国", (24.45, 123.0)), ("大隅", (30.9, 131.0)), ("対馬", (34.3, 129.5)), ("奄美", (28.6, 129.2)),
+    ("横当", (28.6, 129.2)), ("沖縄本島", (25.7, 126.5)), ("宗谷", (45.7, 142.0)), ("津軽", (41.5, 140.7)), ("沖永良部", (27.4, 128.6)),
+    ("与論", (27.0, 128.4)), ("石垣", (24.4, 124.2)), ("尖閣", (25.75, 123.5)), ("硫黄島", (24.8, 141.3)), ("犬吠", (35.7, 141.0)),
+    ("房総", (35.0, 140.5)), ("伊豆", (33.0, 139.5)), ("沖ノ鳥", (20.4, 136.1)), ("南大東", (25.8, 131.2)), ("久米", (26.3, 126.8)),
+    ("金門", (24.44, 118.32)), ("馬祖", (26.16, 119.93)), ("澎湖", (23.57, 119.58)), ("東沙", (20.7, 116.72)), ("烏坵", (24.99, 119.45)),
+]
+
+
+def locate(source: str, title: str) -> tuple[float, float] | None:
+    for key, pos in PLACES:
+        if key in title:
+            return pos
+    if source == "Japan MOD" and "軍機" in title:
+        return (27.5, 125.5)  # aircraft releases name no passage; East China Sea placeholder
+    return None
+
+
+def map_summary() -> dict:
+    today = datetime.now(LOCAL_TZ).date().isoformat()
+    now = datetime.now(timezone.utc)
+    zones = rows("SELECT lat, lon, area_km2 FROM msa_zones WHERE ok = 1 AND starts <= ? AND ends >= ?", today, today)
+    near = [z for z in zones if geo.haversine_km(z["lat"], z["lon"], *geo.TAIWAN) <= 300]
+    ccg = rows("SELECT COUNT(DISTINCT mmsi) AS n FROM ais_sightings WHERE day = ? AND cls = 'coast_guard' AND zone IN ('kinmen', 'matsu')", today)[0]["n"]
+    mil = rows("SELECT COUNT(DISTINCT hex) AS n FROM adsb_sightings WHERE day = ?", today)[0]["n"]
+    latest = rows("SELECT civil, military FROM adsb_counts ORDER BY ts_utc DESC LIMIT 1")
+    vessels = rows("SELECT COUNT(*) AS n FROM ais_vessels WHERE ts_utc >= ?", (now - timedelta(minutes=30)).isoformat(timespec="seconds"))[0]["n"]
+    return {"zones_today": len(zones), "zone_area": round(sum(z["area_km2"] for z in near)), "ccg_kinmen": ccg, "mil_aircraft": mil,
+            "civil_now": latest[0]["civil"] if latest else None, "mil_now": latest[0]["military"] if latest else None, "vessels_30m": vessels}
+
+
+def map_data(day: str | None, days: int = 90) -> dict:
+    since = (date.today() - timedelta(days=days)).isoformat()
+    now = datetime.now(timezone.utc)
+    zones = rows("SELECT z.url, z.region, z.number, z.kind, z.sea_area, z.starts, z.ends, z.window, z.polygon, z.area_km2, w.title, w.title_en "
+                 "FROM msa_zones z JOIN msa_warnings w ON w.url = z.url WHERE z.ok = 1 AND z.ends >= ? ORDER BY z.starts", since)
+    if day:
+        zones = [z for z in zones if z["starts"] <= day <= z["ends"]]
+    for z in zones:
+        z["polygon"] = json.loads(z["polygon"])
+    notices = rows("SELECT i.source, i.title, COALESCE(i.title_en, a.title_en) AS title_en, i.url, i.published_utc, a.severity FROM items i "
+                   "LEFT JOIN item_analysis a ON a.item_id = i.id WHERE i.source IN ('Japan MOD', 'Taiwan Coast Guard') AND i.published_utc >= ?",
+                   f"{since}T00:00:00+00:00")
+    markers = []
+    for n in notices:
+        pos = locate(n["source"], n["title"])
+        d = local(n["published_utc"], "%Y-%m-%d")
+        if pos and (not day or d == day):
+            markers.append({"source": n["source"], "title": n["title"], "title_en": n["title_en"], "url": n["url"], "day": d,
+                            "severity": n["severity"], "lat": pos[0], "lon": pos[1]})
+    recent = (now - timedelta(minutes=60)).isoformat(timespec="seconds")
+    vessels = rows("SELECT mmsi, name, cls, lat, lon, sog, cog, ts_utc FROM ais_vessels WHERE ts_utc >= ?", recent)
+    aircraft = rows("SELECT hex, flight, type, desc, military, lat, lon, alt, gs, track, ts_utc FROM adsb_aircraft WHERE ts_utc >= ?",
+                    (now - timedelta(minutes=20)).isoformat(timespec="seconds"))
+    track_since = (now - timedelta(hours=12)).isoformat(timespec="seconds")
+    tracks = {}
+    for r in rows("SELECT t.mmsi AS id, t.lat, t.lon FROM ais_tracks t JOIN ais_vessels v ON v.mmsi = t.mmsi "
+                  "WHERE t.ts_utc >= ? AND v.cls IN ('coast_guard', 'military') ORDER BY t.mmsi, t.ts_utc", track_since):
+        tracks.setdefault(f"v{r['id']}", []).append([r["lat"], r["lon"]])
+    for r in rows("SELECT hex AS id, lat, lon FROM adsb_tracks WHERE ts_utc >= ? ORDER BY hex, ts_utc", track_since):
+        tracks.setdefault(f"a{r['id']}", []).append([r["lat"], r["lon"]])
+    for v in vessels + aircraft:
+        v["age_min"] = int((now - datetime.fromisoformat(v["ts_utc"])).total_seconds() // 60)
+    return {"day": day, "zones": zones, "markers": markers, "vessels": vessels, "aircraft": aircraft,
+            "tracks": [p for p in tracks.values() if len(p) > 1], "generated": local(now.isoformat(), "%H:%M:%S")}

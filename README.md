@@ -4,7 +4,17 @@ Personal early-warning dashboard for China/Taiwan/US tension in the Taiwan Strai
 See SPEC.md for scope and DECISIONS.md for locked decisions and security requirements.
 
 ## Current phase
-Phase 4: LLM layer. Phases 1 (service), 2 (collectors, pages) and 3 (scoring, tripwires) are done.
+Phase 2b (map with live AIS and ADS-B layers) and the Phase 5 watchdog are done. Phases 1 to 4 are done. Remaining: Phase 5 NAS backup. See HANDOVER.md for operational notes.
+
+## Map
+- `/map`: Leaflet (vendored) on Esri World Ocean Base tiles. Layers: MSA closure zones (polygons parsed from the Chinese warning detail pages by the `msa_zones` job, colored by kind), Japan Joint Staff and Coast Guard notices placed on the named passage or island, coast guard and naval ships, tankers, other ships (AIS, last 60 minutes), military and civil aircraft (ADS-B, last 20 minutes), 12-hour tracks for coast guard, naval and military aircraft. Day picker or all 90 days. Refreshes every minute.
+- `ais` runs as a background thread on the aisstream.io websocket (key `AISSTREAM_API_KEY` in `.env`; without it the job reports "not set" and the layer stays empty). Box 20.5 to 27.5 N, 115.5 to 123.5 E. Keeps the latest position per vessel (7 days), 10-minute tracks for flagged classes, and per-day sightings in named areas (Kinmen, Matsu, Taiwan ports, the Strait box).
+- `adsb` polls adsb.lol every minute: civil aircraft within 250 nm of the Strait and all military aircraft in the region. Keeps 7 days of positions and 90 days of counts.
+- Derived indicators feed the index: closed-zone area within 300 km of Taiwan, zones in the Strait, China Coast Guard hulls at Kinmen/Matsu and in the Strait, tankers at Taiwan ports, military aircraft per day, mean civil traffic. Tripwires: any zone in the Strait, CCG surge at Kinmen, military aircraft surge.
+- English-titled MSA entries are duplicates of the Chinese ones with dead links; only Chinese entries (`lang = 'zh'`) are counted, translated and mapped.
+
+## Watchdog
+The `watchdog` job (every 30 minutes) sends a Telegram alert when a job has had no successful run within its allowed age (`config.toml` `[watchdog.max_age_hours]`), one alert per job per 12 hours. Alerts are listed in the tripwire log as `watchdog_<job>`.
 
 ## LLM layer
 - Chain in `config.toml` `[llm]`: Gemini, then Groq, then OpenRouter, all free tiers. A provider is skipped when its key is missing from `.env`, and the next one is tried on any error or rate limit. Every call is logged in `llm_calls`; a hard daily cap (`daily_cap`, SGT day) stops all LLM work when reached.

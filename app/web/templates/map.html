@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% block content %}
+<link rel="stylesheet" href="/static/leaflet.css">
+<div class="toolbar">
+  <label>Day <input type="date" id="day" value="{{ time[:10] }}"></label>
+  <label><input type="checkbox" id="all"> all 90 days</label>
+  <span class="muted">|</span>
+  {% for id, label, on in [('zones', 'Closure zones', True), ('notices', 'Japan MOD and Coast Guard notices', True), ('ccg', 'Coast guard and naval ships', True), ('tankers', 'Tankers', True), ('ships', 'Other ships', False), ('mil', 'Military aircraft', True), ('civil', 'Civil aircraft', False), ('tracks', 'Tracks (12h)', True)] %}
+  <label><input type="checkbox" class="layer" data-layer="{{ id }}" {{ 'checked' if on }}> {{ label }}</label>
+  {% endfor %}
+  <span class="muted" id="stamp"></span>
+</div>
+<div id="map"></div>
+<p class="muted" style="font-size:12px;margin:8px 0 0">
+  Zones from China MSA navigation warnings (red live-fire, orange exercise, yellow rocket debris). Ships from aisstream.io volunteer receivers, positions in the last 60 minutes;
+  PLA Navy does not broadcast AIS, China Coast Guard usually does. Aircraft from adsb.lol, last 20 minutes; PLA aircraft do not broadcast ADS-B, US and Japanese ISR often do.
+  Live layers refresh every minute. Today: {{ mapsum.zones_today }} zones ({{ '{:,}'.format(mapsum.zone_area) }} km² near Taiwan), {{ mapsum.vessels_30m }} vessels seen in 30 min.
+</p>
+<script src="/static/leaflet.js"></script>
+<script>
+const map = L.map('map', { zoomControl: true }).setView([24.5, 120.5], 6);
+// Esri World Ocean Base: free with attribution, no key. Darkened by CSS to match the dashboard.
+L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Ocean/World_Ocean_Base/MapServer/tile/{z}/{y}/{x}', { maxZoom: 10,
+  attribution: 'Tiles &copy; Esri, GEBCO, NOAA, National Geographic, DeLorme, HERE, Geonames.org and others' }).addTo(map);
+// Reference lines: Taiwan Strait median line (approximate) and the 24 nm contiguous zone around Kinmen/Matsu are not drawn; keep the map factual.
+const groups = {};
+['zones', 'notices', 'ccg', 'tankers', 'ships', 'mil', 'civil', 'tracks'].forEach(k => groups[k] = L.layerGroup().addTo(map));
+const KIND = { live_fire: css('--crit'), exercise: css('--s2'), rocket: css('--s4'), other: css('--muted') };
+const CLS = { coast_guard: css('--s5'), military: css('--crit'), law: css('--s5'), tanker: css('--s3'), cargo: '#6b7280', fishing: '#4b5563', other: '#6b7280' };
+const esc = s => (s || '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const icon = (ch, deg, color, size) => L.divIcon({ className: 'ico', html: `<span style="display:inline-block;color:${color};font-size:${size || 14}px;transform:rotate(${deg || 0}deg)">${ch}</span>`, iconSize: [16, 16], iconAnchor: [8, 8] });
+function apply() {
+  document.querySelectorAll('input.layer').forEach(c => { const g = groups[c.dataset.layer]; c.checked ? g.addTo(map) : map.removeLayer(g); });
+}
+async function load() {
+  const all = document.getElementById('all').checked, day = document.getElementById('day').value;
+  const r = await fetch(`/api/map?${all ? '' : 'day=' + day}`);
+  if (!r.ok) return;
+  const d = await r.json();
+  Object.values(groups).forEach(g => g.clearLayers());
+  d.zones.forEach(z => L.polygon(z.polygon, { color: KIND[z.kind] || KIND.other, weight: 1.5, fillOpacity: 0.25 })
+    .bindPopup(`<b>${esc(z.title)}</b>${z.title_en ? '<br>' + esc(z.title_en) : ''}<br>${esc(z.region)}, ${esc(z.sea_area || '')}<br>${esc(z.window || z.starts + ' to ' + z.ends)}<br>${Math.round(z.area_km2)} km² <a href="${z.url}" target="_blank">source</a>`)
+    .addTo(groups.zones));
+  d.markers.forEach(m => L.circleMarker([m.lat, m.lon], { radius: m.source === 'Japan MOD' ? 6 : 7, color: m.source === 'Japan MOD' ? css('--s1') : css('--s5'), weight: 2, fillOpacity: 0.6 })
+    .bindPopup(`<b>${esc(m.source)}</b> ${m.day}${m.severity ? ' (severity ' + m.severity + ')' : ''}<br>${esc(m.title)}${m.title_en ? '<br><span style="opacity:.7">' + esc(m.title_en) + '</span>' : ''}<br><a href="${m.url}" target="_blank">source</a>`)
+    .addTo(groups.notices));
+  d.vessels.forEach(v => {
+    const g = (v.cls === 'coast_guard' || v.cls === 'military' || v.cls === 'law') ? groups.ccg : (v.cls === 'tanker' ? groups.tankers : groups.ships);
+    const big = g !== groups.ships;
+    L.marker([v.lat, v.lon], { icon: icon('▲', v.cog, CLS[v.cls] || CLS.other, big ? 16 : 9) })
+      .bindPopup(`<b>${esc(v.name || 'MMSI ' + v.mmsi)}</b><br>${v.cls.replace('_', ' ')}, MMSI ${v.mmsi}<br>${v.sog != null ? v.sog + ' kn' : ''} ${v.cog != null ? 'course ' + Math.round(v.cog) + '°' : ''}<br>${v.age_min} min ago`)
+      .addTo(g);
+  });
+  d.aircraft.forEach(a => L.marker([a.lat, a.lon], { icon: icon('✈', (a.track || 0) - 45, a.military ? css('--crit') : css('--s1'), a.military ? 18 : 11) })
+    .bindPopup(`<b>${esc(a.flight || a.hex)}</b> ${esc(a.type || '')}<br>${esc(a.desc || '')}${a.military ? ' (military)' : ''}<br>${a.alt != null ? a.alt + ' ft' : ''} ${a.gs != null ? Math.round(a.gs) + ' kn' : ''}<br>${a.age_min} min ago`)
+    .addTo(a.military ? groups.mil : groups.civil));
+  d.tracks.forEach(t => L.polyline(t, { color: css('--text-2'), weight: 1, opacity: 0.6, dashArray: '3 4' }).addTo(groups.tracks));
+  document.getElementById('stamp').textContent = `${d.zones.length} zones, ${d.markers.length} notices, ${d.vessels.length} ships, ${d.aircraft.length} aircraft. Updated ${d.generated}`;
+  apply();
+}
+document.getElementById('day').onchange = load;
+document.getElementById('all').onchange = load;
+document.querySelectorAll('input.layer').forEach(c => c.onchange = apply);
+load();
+setInterval(load, 60000);
+</script>
+{% endblock %}

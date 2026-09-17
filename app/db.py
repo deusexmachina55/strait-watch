@@ -1,7 +1,10 @@
+import re
 import sqlite3
 from contextlib import closing
 
 from app.config import DB_PATH
+
+CJK = re.compile(r"[\u3040-\u30ff\u3400-\u9fff]")
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS job_status (
@@ -142,6 +145,84 @@ CREATE TABLE IF NOT EXISTS llm_calls (
     error TEXT
 );
 
+-- Map: MSA closure polygons, AIS vessels, ADS-B aircraft
+CREATE TABLE IF NOT EXISTS msa_zones (
+    url TEXT PRIMARY KEY,
+    region TEXT NOT NULL,
+    number TEXT,
+    kind TEXT NOT NULL,
+    sea_area TEXT,
+    starts TEXT NOT NULL,
+    ends TEXT NOT NULL,
+    window TEXT,
+    polygon TEXT NOT NULL,
+    lat REAL,
+    lon REAL,
+    area_km2 REAL NOT NULL,
+    ok INTEGER NOT NULL,
+    parsed_utc TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS ais_vessels (
+    mmsi INTEGER PRIMARY KEY,
+    name TEXT,
+    ship_type INTEGER,
+    cls TEXT NOT NULL,
+    lat REAL NOT NULL,
+    lon REAL NOT NULL,
+    sog REAL,
+    cog REAL,
+    ts_utc TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS ais_tracks (
+    mmsi INTEGER NOT NULL,
+    ts_utc TEXT NOT NULL,
+    lat REAL NOT NULL,
+    lon REAL NOT NULL,
+    sog REAL,
+    cog REAL,
+    PRIMARY KEY (mmsi, ts_utc)
+);
+CREATE TABLE IF NOT EXISTS ais_sightings (
+    day TEXT NOT NULL,
+    mmsi INTEGER NOT NULL,
+    zone TEXT NOT NULL,
+    cls TEXT NOT NULL,
+    PRIMARY KEY (day, mmsi, zone)
+);
+CREATE TABLE IF NOT EXISTS adsb_aircraft (
+    hex TEXT PRIMARY KEY,
+    flight TEXT,
+    type TEXT,
+    reg TEXT,
+    desc TEXT,
+    military INTEGER NOT NULL,
+    lat REAL NOT NULL,
+    lon REAL NOT NULL,
+    alt REAL,
+    gs REAL,
+    track REAL,
+    ts_utc TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS adsb_tracks (
+    hex TEXT NOT NULL,
+    ts_utc TEXT NOT NULL,
+    lat REAL NOT NULL,
+    lon REAL NOT NULL,
+    alt REAL,
+    PRIMARY KEY (hex, ts_utc)
+);
+CREATE TABLE IF NOT EXISTS adsb_sightings (
+    day TEXT NOT NULL,
+    hex TEXT NOT NULL,
+    kind TEXT NOT NULL,
+    PRIMARY KEY (day, hex, kind)
+);
+CREATE TABLE IF NOT EXISTS adsb_counts (
+    ts_utc TEXT PRIMARY KEY,
+    civil INTEGER NOT NULL,
+    military INTEGER NOT NULL
+);
+
 -- Prices: 5-minute bars (rolling) and daily closes
 CREATE TABLE IF NOT EXISTS prices_intraday (
     symbol TEXT NOT NULL,
@@ -170,6 +251,11 @@ def init() -> None:
         conn.execute("PRAGMA journal_mode=WAL")
         conn.executescript(SCHEMA)
         # Columns added after the table was created
-        for table in ("msa_warnings", "items"):
-            if "title_en" not in [r[1] for r in conn.execute(f"PRAGMA table_info({table})")]:
-                conn.execute(f"ALTER TABLE {table} ADD COLUMN title_en TEXT")
+        for table, column in (("msa_warnings", "title_en"), ("items", "title_en"), ("msa_warnings", "lang"), ("job_status", "last_ok_utc")):
+            if column not in [r[1] for r in conn.execute(f"PRAGMA table_info({table})")]:
+                conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} TEXT")
+        # English-titled MSA entries are duplicates of the Chinese ones with dead links; tag the language once
+        for url, title in conn.execute("SELECT url, title FROM msa_warnings WHERE lang IS NULL").fetchall():
+            conn.execute("UPDATE msa_warnings SET lang = ? WHERE url = ?", ("zh" if CJK.search(title) else "en", url))
+        conn.execute("UPDATE job_status SET last_ok_utc = last_run_utc WHERE last_ok_utc IS NULL AND ok = 1")
+        conn.commit()

@@ -78,7 +78,7 @@ strait-watch/
 - Leaflet served locally, OpenStreetMap tiles. No paid map APIs.
 - Layers: China MSA warning zones as polygons parsed from the warning detail text (live-fire and exercise zones highlighted), Japan Joint Staff sightings as markers on the named strait or passage, Taiwan Coast Guard incidents (Kinmen, Matsu), MND airspace sectors (north, central, southwest, east) shaded by aircraft count.
 - Time slider or day picker; tripwire hits shown on the map once Phase 3 exists.
-- No live ship or aircraft positions in v1 (AIS and ADS-B are v2).
+- v2 (built together with v1 on 2026-09-18): AIS via aisstream.io (free key) and ADS-B via adsb.lol (no key), with derived indicators (Coast Guard hulls near Kinmen/Matsu, tankers at Taiwan ports, military aircraft in the region, civil traffic over the Strait) feeding the index. PLA units broadcast neither, so these layers show Coast Guard, merchant and US/Japanese traffic.
 
 ### Phase 4: LLM layer
 - Chain: Gemini free tier -> Groq -> OpenRouter free models. Fall through on rate limit or error. Keys in .env.

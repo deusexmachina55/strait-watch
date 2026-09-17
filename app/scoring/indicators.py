@@ -2,6 +2,7 @@
 from collections import defaultdict
 from datetime import date, datetime, timedelta
 
+from app import geo
 from app.config import LOCAL_TZ
 from app.web.data import rows
 
@@ -9,7 +10,8 @@ STATE_MEDIA = ("Global Times", "Xinhua")
 NEWS_EXCLUDED = ("Japan MOD", "Taiwan Coast Guard")
 PRICE_RETURNS = {"tsm_5d": "TSM", "gold_5d": "GC=F", "cnh_5d": "CNH=X", "sox_5d": "^SOX"}
 # Level-type indicators (complete whenever present), as opposed to per-day event counts
-PARTIAL_DAY_EXEMPT = {"pla_aircraft", "pla_entered", "pla_navy", "pla_official", "polymarket", "advisory", *PRICE_RETURNS}
+PARTIAL_DAY_EXEMPT = {"pla_aircraft", "pla_entered", "pla_navy", "pla_official", "polymarket", "advisory", "civil_traffic",
+                      "zone_area_taiwan", "zone_in_strait", *PRICE_RETURNS}
 
 
 def local_day(iso_utc: str) -> str:
@@ -36,7 +38,7 @@ def series(days: int = 120) -> dict[str, dict[str, float]]:
         out["pla_navy"][d] = r["navy_ships"]
         out["pla_official"][d] = r["official_ships"]
 
-    msa = rows("SELECT region, issued_date, COUNT(*) AS n FROM msa_warnings WHERE military = 1 AND issued_date >= ? "
+    msa = rows("SELECT region, issued_date, COUNT(*) AS n FROM msa_warnings WHERE military = 1 AND lang = 'zh' AND issued_date >= ? "
                "GROUP BY region, issued_date", since)
     msa_first = rows("SELECT MIN(issued_date) AS d FROM msa_warnings")[0]["d"]
     total, fujian = defaultdict(int), defaultdict(int)
@@ -89,6 +91,47 @@ def series(days: int = 120) -> dict[str, dict[str, float]]:
         (physical if r["physical"] else rhetoric)[local_day(r["published_utc"])] += r["severity"]
     out["llm_physical"] = zero_fill(physical, labels, local_day(llm_first) if llm_first else None)
     out["llm_rhetoric"] = zero_fill(rhetoric, labels, local_day(llm_first) if llm_first else None)
+
+    # Closure zones: area within 300 km of Taiwan and count in the Strait, per active day
+    zones = rows("SELECT starts, ends, lat, lon, area_km2 FROM msa_zones WHERE ok = 1 AND ends >= ?", since)
+    zones_first = rows("SELECT MIN(parsed_utc) AS d FROM msa_zones")[0]["d"]
+    area, in_strait = defaultdict(float), defaultdict(int)
+    for z in zones:
+        near = geo.haversine_km(z["lat"], z["lon"], *geo.TAIWAN) <= 300
+        strait = geo.in_box(z["lat"], z["lon"]) or geo.in_circle(z["lat"], z["lon"], "kinmen") or geo.in_circle(z["lat"], z["lon"], "matsu")
+        d = date.fromisoformat(z["starts"])
+        while d <= date.fromisoformat(z["ends"]):
+            if near:
+                area[d.isoformat()] += z["area_km2"]
+            in_strait[d.isoformat()] += strait
+            d += timedelta(days=1)
+    # Zones are known for the whole window once the first parse ran, so coverage starts at the window start
+    out["zone_area_taiwan"] = zero_fill(area, labels, since if zones_first else None)
+    out["zone_in_strait"] = zero_fill(in_strait, labels, since if zones_first else None)
+
+    # AIS sightings: distinct hulls per day per named area
+    ais_first = rows("SELECT MIN(day) AS d FROM ais_sightings")[0]["d"]
+    ccg_k, ccg_s, tank = defaultdict(set), defaultdict(set), defaultdict(set)
+    for r in rows("SELECT day, mmsi, zone, cls FROM ais_sightings WHERE day >= ?", since):
+        if r["cls"] == "coast_guard" and r["zone"] in ("kinmen", "matsu"):
+            ccg_k[r["day"]].add(r["mmsi"])
+        if r["cls"] == "coast_guard" and r["zone"] == "strait":
+            ccg_s[r["day"]].add(r["mmsi"])
+        if r["cls"] == "tanker" and r["zone"] == "taiwan_port":
+            tank[r["day"]].add(r["mmsi"])
+    out["ccg_near_kinmen"] = zero_fill({d: len(v) for d, v in ccg_k.items()}, labels, ais_first)
+    out["ccg_strait"] = zero_fill({d: len(v) for d, v in ccg_s.items()}, labels, ais_first)
+    out["tankers_ports"] = zero_fill({d: len(v) for d, v in tank.items()}, labels, ais_first)
+
+    # ADS-B: distinct military aircraft per day, mean civil count per day
+    adsb_first = rows("SELECT MIN(day) AS d FROM adsb_sightings")[0]["d"]
+    mil = {r["day"]: r["n"] for r in rows("SELECT day, COUNT(DISTINCT hex) AS n FROM adsb_sightings WHERE day >= ? GROUP BY day", since)}
+    out["mil_aircraft"] = zero_fill(mil, labels, adsb_first)
+    civil = defaultdict(list)
+    for r in rows("SELECT ts_utc, civil FROM adsb_counts WHERE ts_utc >= ?", f"{since}T00:00:00+00:00"):
+        civil[local_day(r["ts_utc"])].append(r["civil"])
+    # Traffic is much lower at night, so a day only counts once most of it is sampled (one sample a minute)
+    out["civil_traffic"] = {d: sum(v) / len(v) for d, v in civil.items() if len(v) >= 900}
 
     # Polymarket: daily last probability (in percent) of the highest-volume market
     top = rows("SELECT market_id FROM market_odds ORDER BY volume DESC LIMIT 1")

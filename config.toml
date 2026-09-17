@@ -155,11 +155,21 @@ sox_5d = [0, 4]
 # LLM severity sums per day: physical actions and rhetoric (Phase 4)
 llm_physical = [4, 4]
 llm_rhetoric = [6, 5]
+# Map layer indicators: closed-zone area (km2) within 300 km of Taiwan, zones in the Strait,
+# China Coast Guard hulls near Kinmen/Matsu and in the Strait, tankers at Taiwan ports,
+# military aircraft in the region, mean civil aircraft over the Strait
+zone_area_taiwan = [150, 300]
+zone_in_strait = [0.2, 0.5]
+ccg_near_kinmen = [1, 1.5]
+ccg_strait = [2, 2]
+tankers_ports = [8, 4]
+mil_aircraft = [2, 2]
+civil_traffic = [25, 10]
 
 # Indicators per sub-score with weights. Negative weight means a lower value raises the score.
 [scoring.subscores]
-military = { pla_aircraft = 1.0, pla_entered = 1.0, pla_navy = 0.7, pla_official = 0.3, msa_military = 0.7, msa_fujian_military = 1.0, gdelt_twn_material = 0.7, japan_sightings = 0.5, cga_incursions = 0.7, llm_physical = 1.0 }
-economic = { tsm_5d = -1.0, sox_5d = -0.5, gold_5d = 1.0, cnh_5d = 1.0, items_economic = 0.5 }
+military = { pla_aircraft = 1.0, pla_entered = 1.0, pla_navy = 0.7, pla_official = 0.3, msa_military = 0.7, msa_fujian_military = 1.0, gdelt_twn_material = 0.7, japan_sightings = 0.5, cga_incursions = 0.7, llm_physical = 1.0, zone_area_taiwan = 0.8, zone_in_strait = 1.0, ccg_near_kinmen = 1.0, ccg_strait = 0.6, mil_aircraft = 0.6 }
+economic = { tsm_5d = -1.0, sox_5d = -0.5, gold_5d = 1.0, cnh_5d = 1.0, items_economic = 0.5, tankers_ports = -0.5, civil_traffic = -0.7 }
 diplomatic = { gdelt_twn_verbal = 0.8, gdelt_usa_material = 0.6, items_diplomatic = 0.7, polymarket = 1.0, advisory = 1.0 }
 rhetoric = { items_state_media = 1.0, items_military = 0.7, llm_rhetoric = 1.0 }
 
@@ -235,6 +245,30 @@ severity = 3
 cooldown = 24
 
 [[tripwires.indicators]]
+name = "msa_zone_strait"
+indicator = "zone_in_strait"
+sigma = 0
+absolute = 1
+severity = 4
+cooldown = 24
+
+[[tripwires.indicators]]
+name = "ccg_kinmen_surge"
+indicator = "ccg_near_kinmen"
+sigma = 2.0
+absolute = 5
+severity = 3
+cooldown = 24
+
+[[tripwires.indicators]]
+name = "mil_aircraft_surge"
+indicator = "mil_aircraft"
+sigma = 2.5
+absolute = 8
+severity = 3
+cooldown = 24
+
+[[tripwires.indicators]]
 name = "polymarket_jump"
 indicator = "polymarket"
 sigma = 2.5
@@ -258,3 +292,24 @@ max_item_age_days = 14
 # Morning digest time, Asia/Singapore
 digest_hour = 7
 digest_minute = 30
+
+[watchdog]
+# Telegram alert when a job has had no successful run for longer than this (hours). One alert per job per cooldown.
+cooldown_hours = 12
+
+[watchdog.max_age_hours]
+heartbeat = 1
+mnd = 30
+rss = 2
+gdelt = 2
+prices = 2
+msa = 6
+msa_zones = 6
+japan_mod = 12
+coast_guard = 12
+advisories = 24
+polymarket = 6
+scoring = 1
+llm_analyze = 6
+adsb = 1
+ais = 1

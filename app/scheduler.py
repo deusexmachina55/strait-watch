@@ -6,7 +6,8 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 
 from app import db, scoring
-from app.collectors import advisories, coast_guard, gdelt, japan_mod, msa, mnd, polymarket, prices, rss
+from app.collectors import adsb, advisories, ais, coast_guard, gdelt, japan_mod, msa, msa_zones, mnd, polymarket, prices, rss
+from app.scoring import watchdog
 from app.config import LOCAL_TZ, SETTINGS
 from app.llm import analyze, digest
 
@@ -20,10 +21,10 @@ def record(job: str, ok: bool, message: str | None = None) -> None:
     now = datetime.now(timezone.utc).isoformat(timespec="seconds")
     with closing(db.connect()) as conn, conn:
         conn.execute(
-            "INSERT INTO job_status (job, last_run_utc, ok, message) VALUES (?, ?, ?, ?) "
-            "ON CONFLICT(job) DO UPDATE SET last_run_utc = excluded.last_run_utc, "
-            "ok = excluded.ok, message = excluded.message",
-            (job, now, ok, message),
+            "INSERT INTO job_status (job, last_run_utc, last_ok_utc, ok, message) VALUES (?, ?, ?, ?, ?) "
+            "ON CONFLICT(job) DO UPDATE SET last_run_utc = excluded.last_run_utc, ok = excluded.ok, message = excluded.message, "
+            "last_ok_utc = CASE WHEN excluded.ok THEN excluded.last_run_utc ELSE job_status.last_ok_utc END",
+            (job, now, now if ok else None, ok, message),
         )
         if not ok:
             conn.execute(
@@ -64,6 +65,10 @@ def start() -> None:
     add_job("coast_guard", coast_guard.run, hours=3)
     add_job("advisories", advisories.run, hours=6)
     add_job("polymarket", polymarket.run, hours=1)
+    add_job("msa_zones", msa_zones.run, minutes=30, run_now=False, next_run_time=datetime.now(timezone.utc) + timedelta(minutes=4))
+    add_job("adsb", adsb.run, minutes=1)
+    add_job("watchdog", watchdog.run, minutes=30, run_now=False)
+    ais.start()
     # Index and tripwires, shortly after the collectors have had a chance to run
     add_job("scoring", scoring.run, minutes=10, run_now=False, next_run_time=datetime.now(timezone.utc) + timedelta(minutes=2))
     add_job("llm_analyze", analyze.run, minutes=30, run_now=False, next_run_time=datetime.now(timezone.utc) + timedelta(minutes=3))

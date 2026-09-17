@@ -66,7 +66,7 @@ def render(request: Request, template: str, page: str, **ctx):
 def overview_ctx() -> dict:
     return {"scores": data.scores(), "changes": data.price_changes(["GC=F", "TSM", "BTC-USD"]), "pla": data.pla(),
             "gdelt": data.gdelt(), "msa": data.msa(), "prices": data.prices(OVERVIEW_SYMBOLS),
-            "advisories": data.advisories(), "tripwires": data.tripwires(10), "items": data.items(limit=15)}
+            "advisories": data.advisories(), "tripwires": data.tripwires(10), "items": data.items(limit=15), "mapsum": data.map_summary()}
 
 
 def news_ctx(source: str, all: bool, q: str, limit: int) -> dict:
@@ -139,6 +139,16 @@ def signals(request: Request):
 @app.get("/partials/signals")
 def signals_partial(request: Request):
     return render(request, "partials/signals.html", "Signals", **signals_ctx())
+
+
+@app.get("/map")
+def map_page(request: Request):
+    return render(request, "map.html", "Map", mapsum=data.map_summary())
+
+
+@app.get("/api/map")
+def map_api(day: str = "", days: int = 90):
+    return data.map_data(day or None, min(days, 365))
 
 
 @app.get("/system")

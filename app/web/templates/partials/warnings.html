@@ -2,7 +2,7 @@
   <div class="card">
     <h2>China MSA navigation warnings</h2>
     <table>
-      <thead><tr><th>Issued</th><th>Region</th><th>Number</th><th>Title</th></tr></thead>
+      <thead><tr><th>Issued</th><th>Region</th><th>Number</th><th>Title</th><th>Area, active window</th></tr></thead>
       <tbody>
       {% for w in warnings %}
       <tr>
@@ -10,9 +10,10 @@
         <td class="nowrap">{{ w.region }}</td>
         <td class="nowrap">{{ w.number or '' }}</td>
         <td><a href="{{ w.url }}" target="_blank" rel="noopener">{{ w.title }}</a>{% if w.title_en %} <span class="muted">({{ w.title_en }})</span>{% endif %}</td>
+        <td class="muted">{{ w.sea_area or '' }}{% if w.window %}, {{ w.window }}{% endif %}{% if w.mapped %} <a href="/map">(map)</a>{% endif %}</td>
       </tr>
       {% else %}
-      <tr><td colspan="4" class="muted">No warnings match.</td></tr>
+      <tr><td colspan="5" class="muted">No warnings match.</td></tr>
       {% endfor %}
       </tbody>
     </table>

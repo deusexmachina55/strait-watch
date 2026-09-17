@@ -7,6 +7,7 @@ from selectolax.parser import HTMLParser
 
 from app import db, http
 from app.config import SETTINGS
+from app.db import CJK
 
 BASE = "https://www.msa.gov.cn"
 MILITARY = re.compile("|".join(re.escape(t) for t in SETTINGS["msa"]["military_terms"]), re.IGNORECASE)
@@ -29,6 +30,7 @@ def page(channel_id: str, n: int) -> list[dict]:
             "number": number.group(0) if number else None,
             "issued_date": when.text().strip(),
             "military": int(bool(MILITARY.search(title))),
+            "lang": "zh" if CJK.search(title) else "en",
         })
     return rows
 
@@ -49,8 +51,8 @@ def run() -> str:
             with closing(db.connect()) as conn, conn:
                 for row in rows:
                     cur = conn.execute(
-                        "INSERT OR IGNORE INTO msa_warnings (url, region, number, title, issued_date, military, fetched_utc) "
-                        "VALUES (:url, :region, :number, :title, :issued_date, :military, :fetched)",
+                        "INSERT OR IGNORE INTO msa_warnings (url, region, number, title, issued_date, military, lang, fetched_utc) "
+                        "VALUES (:url, :region, :number, :title, :issued_date, :military, :lang, :fetched)",
                         row | {"region": channel["region"], "fetched": now})
                     page_new += cur.rowcount
             new += page_new

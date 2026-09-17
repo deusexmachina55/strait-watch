@@ -49,6 +49,16 @@
     <div class="v">{{ gdelt.today.events if gdelt.today else 0 }}</div>
     <div class="s">{{ gdelt.today.material_conflict if gdelt.today else 0 }} material conflict events</div>
   </div>
+  <div class="card tile">
+    <div class="l">Closed zones near Taiwan, today <a class="muted" href="/map">(map)</a></div>
+    <div class="v">{{ mapsum.zones_today }}</div>
+    <div class="s">{{ '{:,}'.format(mapsum.zone_area) }} km² within 300 km</div>
+  </div>
+  <div class="card tile">
+    <div class="l">Live traffic (AIS, ADS-B)</div>
+    <div class="v">{{ mapsum.ccg_kinmen }}</div>
+    <div class="s">CCG hulls at Kinmen/Matsu today; {{ mapsum.mil_aircraft }} military aircraft today, {{ mapsum.civil_now if mapsum.civil_now is not none else '–' }} civil over the Strait now</div>
+  </div>
   {% for a in advisories %}
   <div class="card tile">
     <div class="l">US advisory: {{ a.country }} <a class="muted" href="/signals">(signals)</a></div>
