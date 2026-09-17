@@ -66,7 +66,10 @@
   .htmx-request .refresh { opacity: .5; }
   #map { height: calc(100vh - 150px); min-height: 500px; border-radius: 8px; border: 1px solid var(--border); }
   .leaflet-container { background: #0d0d0d; font: inherit; }
-  .leaflet-tile-pane { filter: brightness(0.5) saturate(0.6); }
+  body[data-basemap='Light, with cities'] .leaflet-tile-pane, body[data-basemap='OpenStreetMap'] .leaflet-tile-pane { filter: brightness(0.6) saturate(0.6); }
+  body[data-basemap='Ocean, with cities'] .leaflet-tile-pane { filter: brightness(0.5) saturate(0.6); }
+  .leaflet-control-layers { background: var(--surface); color: var(--text); border: 1px solid var(--border); font-size: 12px; }
+  .leaflet-control-layers-expanded { padding: 6px 10px; }
   .leaflet-popup-content-wrapper, .leaflet-popup-tip { background: var(--surface); color: var(--text); }
   .leaflet-popup-content a { color: var(--text); text-decoration: underline; }
   .ico { font-size: 14px; line-height: 1; text-shadow: 0 0 3px #000; white-space: nowrap; }

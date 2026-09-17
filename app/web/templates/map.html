@@ -19,9 +19,21 @@
 <script src="/static/leaflet.js"></script>
 <script>
 const map = L.map('map', { zoomControl: true }).setView([24.5, 120.5], 6);
-// Esri World Ocean Base: free with attribution, no key. Darkened by CSS to match the dashboard.
-L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Ocean/World_Ocean_Base/MapServer/tile/{z}/{y}/{x}', { maxZoom: 10,
-  attribution: 'Tiles &copy; Esri, GEBCO, NOAA, National Geographic, DeLorme, HERE, Geonames.org and others' }).addTo(map);
+// Basemaps, all free without a key (Esri requires the attribution shown). Choice remembered in this browser.
+const esri = (path, opts) => L.tileLayer(`https://server.arcgisonline.com/ArcGIS/rest/services/${path}/MapServer/tile/{z}/{y}/{x}`, { maxZoom: 16, ...opts });
+const attrEsri = 'Tiles &copy; Esri, HERE, Garmin, GEBCO, NOAA, USGS, National Geographic and others';
+const basemaps = {
+  'Dark, with cities': L.layerGroup([esri('Canvas/World_Dark_Gray_Base', { attribution: attrEsri }), esri('Canvas/World_Dark_Gray_Reference', {})]),
+  'Light, with cities': L.layerGroup([esri('Canvas/World_Light_Gray_Base', { attribution: attrEsri }), esri('Canvas/World_Light_Gray_Reference', {})]),
+  'Ocean, with cities': L.layerGroup([esri('Ocean/World_Ocean_Base', { maxZoom: 10, attribution: attrEsri }), esri('Ocean/World_Ocean_Reference', { maxZoom: 10 })]),
+  'OpenStreetMap': L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 16, attribution: '&copy; OpenStreetMap contributors' }),
+};
+let basemapName = 'Dark, with cities';
+try { basemapName = localStorage.getItem('sw-basemap') in basemaps ? localStorage.getItem('sw-basemap') : basemapName; } catch (e) {}
+basemaps[basemapName].addTo(map);
+L.control.layers(basemaps, null, { position: 'topright', collapsed: false }).addTo(map);
+map.on('baselayerchange', e => { try { localStorage.setItem('sw-basemap', e.name); } catch (err) {} document.body.dataset.basemap = e.name; });
+document.body.dataset.basemap = basemapName;
 // Reference lines: Taiwan Strait median line (approximate) and the 24 nm contiguous zone around Kinmen/Matsu are not drawn; keep the map factual.
 const groups = {};
 ['zones', 'notices', 'ccg', 'tankers', 'ships', 'mil', 'civil', 'tracks'].forEach(k => groups[k] = L.layerGroup().addTo(map));
