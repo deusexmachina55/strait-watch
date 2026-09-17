@@ -7,7 +7,7 @@ Read this first in a new session, after CLAUDE.md, SPEC.md and DECISIONS.md. It 
 - Backup tab (Phase 5) built and tested on a copy, committed, needs a restart to go live. The user sets destination (drive or UNC path), schedule and retention in the browser; settings live in the `settings` table because the service cannot write `config.toml`. A local drive folder needs Modify rights for `svc-straitwatch` (icacls); a UNC path needs `BACKUP_SMB_USER` and `BACKUP_SMB_PASS` in `.env`. Nothing runs until the user enables it and a destination passes "Test destination". Restore is on the same page and works without a restart (scheduler paused, integrity check, safety copy, SQLite online backup into the live DB); tested: 100 deleted rows came back.
 - Briefing tab (Phase 6) built and tested on a copy (a weekly brief generated via Groq in 7 s, grounded in the given numbers), committed, needs a restart. Briefs list shows the newest of each kind open, older ones collapsed, kind filter, last 40. Tab order now: Overview, Briefing, Signals, Markets, News, Warnings, Map, System, Backup.
 - Settings tab (Phase 7) built and tested on a copy, committed, needs a restart. Secrets moved from `.env` to the `settings` table (password PBKDF2-hashed); on the first start after the restart the app imports the user's `.env` values automatically, then `.env` is redundant. `setup.ps1` no longer prompts for secrets; a fresh install gets a generated password in `data\initial-password.txt`.
-- Pending: packaging for install on another PC (see "Packaging" below): Build-Package.ps1, install.cmd, upgrade.ps1, export-for-sharing.
+- Packaging built in `installer\`: Build-Package.ps1 (zip with `.python` and `.venv`, about 300 MB, no data or secrets), install.cmd (admin bootstrap, installs pwsh 7, runs setup.ps1), upgrade.ps1 (snapshot, stop, replace, start), Export-ForSharing.ps1 (snapshot minus settings, keys, logs, briefs). setup.ps1 auto-detects interface and subnet from the default route. Only tested on this PC (build and export ran; install path untested on a second machine).
 - First morning digest with LLM assessment due 07:30 SGT on 2026-09-18.
 
 ## How the box is run
@@ -48,10 +48,11 @@ Read this first in a new session, after CLAUDE.md, SPEC.md and DECISIONS.md. It 
 - Prefers not to be woken by permission prompts; blanket approval given on 2026-09-18 for non-elevated work and pushes.
 - Wants originals plus English, not English only.
 
-## Packaging (idea, not built)
-- `Build-Package.ps1` zips the repo with `.python\` and `.venv\` (about 300 MB) minus `data\`, `logs\`, `.env`, `.git`. On the target: unzip to `C:\claudespace\strait-watch`, run `setup.ps1` as admin with `-InterfaceAlias` and `-LanSubnet` for that LAN; it prompts for secrets, creates the service account, ACLs, firewall rule and service. Copy a backup of `data\strait.db` in first to keep history. The uv-managed Python is relocatable as long as the folder path is the same.
+## Packaging
+- `installer\README.md` is the recipient's guide. The `.venv` is bound to `C:\claudespace\strait-watch`; install.cmd refuses any other path. `VERSION.txt` is written into the zip by the build (gitignored in the repo); `appersion.py` is the source of truth, shown on the System page.
+- A recipient needs their own free accounts (Telegram bot, Groq at least, aisstream optional); the Settings page walks them through it. Do not ship the developer's keys.
 
 ## Next steps, in order
-1. User restarts; sets the backup destination and runs "Backup now" once; presses "Weekly now" on Briefing for a first brief.
-2. Packaging script if the user wants a second install.
+1. User restarts; changes nothing on Settings unless wanted (values imported from .env); sets the backup destination and runs "Backup now" once; presses "Weekly now" on Briefing.
+2. First real test of install.cmd on a second PC when the user has one; expect small fixes.
 3. Tuning after two weeks of data: priors in `config.toml`, tripwire thresholds, MSA zone kinds.

@@ -7,3 +7,5 @@ __pycache__/
 *.pyc
 .claude/settings.local.json
 *token*.txt
+dist/
+VERSION.txt

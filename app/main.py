@@ -11,6 +11,7 @@ from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from fastapi.templating import Jinja2Templates
 
 from app import backup, config, db, scheduler, settings
+from app.version import VERSION
 from app.llm import briefs as briefs_mod
 from app.alerts import telegram
 from app.web import data
@@ -24,6 +25,7 @@ basic = HTTPBasic()
 templates = Jinja2Templates(directory=config.ROOT / "app" / "web" / "templates")
 templates.env.globals["fmt_price"] = data.fmt_price
 templates.env.globals["tz_label"] = config.TZ_LABEL
+templates.env.globals["version"] = VERSION
 STATIC = config.ROOT / "app" / "web" / "static"
 GROUPS = config.SETTINGS["prices"]["groups"]
 OVERVIEW_SYMBOLS = config.SETTINGS["prices"]["overview"]

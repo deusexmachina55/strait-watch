@@ -10,11 +10,25 @@
     Every system-level change is printed and needs confirmation.
 #>
 param(
-    [string]$InterfaceAlias = 'Ethernet',
-    [string]$LanSubnet = '192.168.0.0/24',
+    [string]$InterfaceAlias = '',
+    [string]$LanSubnet = '',
     [int]$Port = 8080
 )
 $ErrorActionPreference = 'Stop'
+
+# Default to the interface that carries the default route, and its subnet
+if (-not $InterfaceAlias -or -not $LanSubnet) {
+    $route = Get-NetRoute -DestinationPrefix '0.0.0.0/0' -AddressFamily IPv4 | Sort-Object RouteMetric, InterfaceMetric | Select-Object -First 1
+    $addr = Get-NetIPAddress -InterfaceIndex $route.InterfaceIndex -AddressFamily IPv4 | Select-Object -First 1
+    if (-not $InterfaceAlias) { $InterfaceAlias = $addr.InterfaceAlias }
+    if (-not $LanSubnet) {
+        $ip = [Net.IPAddress]::Parse($addr.IPAddress).GetAddressBytes()
+        $mask = [uint32]::MaxValue -shl (32 - $addr.PrefixLength)
+        $net = [BitConverter]::GetBytes([uint32]([BitConverter]::ToUInt32([byte[]]($ip[3], $ip[2], $ip[1], $ip[0]), 0) -band $mask))
+        $LanSubnet = "$($net[3]).$($net[2]).$($net[1]).$($net[0])/$($addr.PrefixLength)"
+    }
+    Write-Host "Network: interface '$InterfaceAlias', LAN subnet $LanSubnet (override with -InterfaceAlias and -LanSubnet)"
+}
 
 $Root = $PSScriptRoot
 $ServiceName = 'StraitWatch'

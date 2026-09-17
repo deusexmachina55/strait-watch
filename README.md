@@ -84,8 +84,11 @@ Items are marked relevant when a keyword group matches together with a Taiwan co
 - Fresh install: the first start generates a random admin password and writes it to `data\initial-password.txt`; `setup.ps1` prints it. Change it on the Settings page, which deletes the file.
 - Status of every integration is shown at the top of Settings and on the System page.
 
-## Setup
-Run from an elevated prompt (Windows PowerShell 5.1 blocks scripts, so call pwsh explicitly):
+## Installing on another PC
+See `installer\README.md`. Short version: `installer\Build-Package.ps1` here makes `dist\strait-watch-<version>.zip`; on the target, unzip to `C:\claudespace\strait-watch` and run `installer\install.cmd` as administrator; then enter keys on the Settings page and optionally Restore a snapshot (made with `installer\Export-ForSharing.ps1`, which strips your settings and logs) on the Backup page. `installer\upgrade.ps1 -Zip <file>` upgrades in place.
+
+## Setup on this PC
+Run from an elevated prompt (Windows PowerShell 5.1 blocks scripts, so call pwsh explicitly). The interface and LAN subnet are auto-detected from the default route; pass `-InterfaceAlias` and `-LanSubnet` to override.
 
 ```powershell
 pwsh -NoProfile -ExecutionPolicy Bypass -File C:\claudespace\strait-watch\setup.ps1

@@ -99,7 +99,7 @@ strait-watch/
 
 ### Phase 7: Settings and packaging (added 2026-09-18)
 - Settings tab: all per-person secrets and the timezone managed in the browser, stored in the database, each with a live test. First start generates the admin password. `.env` becomes optional (imported once).
-- Packaging (next): Build-Package.ps1 producing a zip with vendored Python, install.cmd bootstrap that installs PowerShell 7 and runs setup.ps1, upgrade.ps1, export-for-sharing that strips personal rows from a snapshot.
+- Packaging (built 2026-09-18, folder `installer\`): Build-Package.ps1 producing a zip with vendored Python, install.cmd bootstrap that installs PowerShell 7 and runs setup.ps1 (network auto-detected), upgrade.ps1, Export-ForSharing.ps1 that strips personal rows from a snapshot. Recipient restores it on the Backup page.
 
 ## Working agreement
 - Build only the phase asked for. Run it, test it, fix it, then commit and push.
