@@ -25,8 +25,13 @@ def run() -> str:
     now = datetime.now(timezone.utc)
     ts = now.isoformat(timespec="seconds")
     today = now.astimezone(LOCAL_TZ).date().isoformat()
-    civil = [a for a in http.get(POINT).json().get("ac", []) if a.get("lat") and not ((a.get("dbFlags") or 0) & 1)]
-    mil = [a for a in http.get(MIL).json().get("ac", []) if a.get("lat") and geo.in_box(a["lat"], a["lon"], BOX)]
+    responses = [http.client.get(POINT), http.client.get(MIL)]
+    if any(r.status_code == 429 for r in responses):
+        return "rate limited by adsb.lol, skipped this poll"
+    for r in responses:
+        r.raise_for_status()
+    civil = [a for a in responses[0].json().get("ac", []) if a.get("lat") and not ((a.get("dbFlags") or 0) & 1)]
+    mil = [a for a in responses[1].json().get("ac", []) if a.get("lat") and geo.in_box(a["lat"], a["lon"], BOX)]
     with closing(db.connect()) as conn, conn:
         for a in civil:
             upsert(conn, a, False, ts)

@@ -293,6 +293,14 @@ max_item_age_days = 14
 digest_hour = 7
 digest_minute = 30
 
+[briefs]
+# Weekly brief: day of week (0 = Monday) and time, SGT. Monthly brief on the 1st at monthly_hour.
+weekly_day = 0
+weekly_hour = 8
+weekly_minute = 0
+monthly_hour = 8
+monthly_minute = 10
+
 [watchdog]
 # Telegram alert when a job has had no successful run for longer than this (hours). One alert per job per cooldown.
 cooldown_hours = 12
@@ -314,3 +322,5 @@ llm_analyze = 6
 adsb = 1
 ais = 1
 backup = 1
+brief_weekly = 192
+outlook_grade = 12

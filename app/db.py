@@ -237,6 +237,32 @@ CREATE TABLE IF NOT EXISTS backups (
     message TEXT
 );
 
+-- Briefing: LLM briefs and graded outlooks
+CREATE TABLE IF NOT EXISTS briefs (
+    id INTEGER PRIMARY KEY,
+    kind TEXT NOT NULL,
+    period_start TEXT NOT NULL,
+    period_end TEXT NOT NULL,
+    created_utc TEXT NOT NULL,
+    provider TEXT,
+    summary TEXT NOT NULL,
+    watch TEXT NOT NULL,
+    outlook_direction TEXT,
+    outlook_confidence TEXT,
+    outlook_rationale TEXT,
+    outlook_triggers TEXT NOT NULL,
+    index_at REAL,
+    facts TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS outlook_scores (
+    brief_id INTEGER PRIMARY KEY,
+    graded_utc TEXT NOT NULL,
+    index_after REAL NOT NULL,
+    delta REAL NOT NULL,
+    actual_direction TEXT NOT NULL,
+    hit INTEGER NOT NULL
+);
+
 -- Prices: 5-minute bars (rolling) and daily closes
 CREATE TABLE IF NOT EXISTS prices_intraday (
     symbol TEXT NOT NULL,

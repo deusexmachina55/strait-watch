@@ -1,0 +1,67 @@
+{% macro arrow(v) %}{% if v is none %}–{% elif v >= 5 %}<span class="bad">rising {{ '%+.0f' % v }}</span>{% elif v <= -5 %}<span class="ok">falling {{ '%+.0f' % v }}</span>{% else %}<span class="muted">flat {{ '%+.0f' % v }}</span>{% endif %}{% endmacro %}
+<section class="tiles">
+  <div class="card tile">
+    <div class="l">Index momentum, 7 days</div>
+    <div class="v">{{ arrow(mech.momentum.composite) }}</div>
+    <div class="s">military {{ arrow(mech.momentum.military) }}, diplomatic {{ arrow(mech.momentum.diplomatic) }}, economic {{ arrow(mech.momentum.economic) }}, rhetoric {{ arrow(mech.momentum.rhetoric) }}</div>
+  </div>
+  <div class="card tile">
+    <div class="l">Taiwan risk premium (TSM vs SOX, 20 days)</div>
+    <div class="v {{ 'bad' if mech.risk_premium is not none and mech.risk_premium < -3 else '' }}">{{ '%+.1f%%' % mech.risk_premium if mech.risk_premium is not none else '–' }}</div>
+    <div class="s">TSM underperforming SOX means markets price Taiwan-specific risk</div>
+  </div>
+  <div class="card tile">
+    <div class="l">Polymarket, 30-day change</div>
+    <div class="v">{{ '%+.1f pts' % mech.poly_change if mech.poly_change is not none else '–' }}</div>
+    <div class="s">{{ mech.poly_question or 'no market yet' }}, now {{ '%.1f%%' % mech.poly_now if mech.poly_now is not none else '–' }}</div>
+  </div>
+  <div class="card tile">
+    <div class="l">Outlook scorecard</div>
+    <div class="v">{% if scorecard.graded %}{{ '%.0f%%' % (100 * scorecard.hits / scorecard.graded) }}{% else %}–{% endif %}</div>
+    <div class="s">{{ scorecard.hits }} of {{ scorecard.graded }} outlooks matched the index 14 days later; {{ scorecard.pending }} awaiting grading</div>
+  </div>
+</section>
+
+<section class="grid" style="grid-template-columns: 2fr 1fr">
+  <div class="card">
+    <h2>Taiwan risk premium, 60 days (TSM minus SOX, 20-day rolling return)</h2>
+    <div class="chart"><canvas id="c-premium"></canvas></div>
+  </div>
+  <div class="card">
+    <h2>Generate</h2>
+    <p class="muted" style="font-size:12px">Weekly briefs run Mondays 08:00 SGT for the previous 7 days, monthly on the 1st for the previous 30. Each one goes to Telegram. Generate now covers the trailing period and counts against the LLM cap.</p>
+    <p><button hx-post="/briefing/generate" hx-vals='{"kind": "weekly"}' hx-target="#gen-result" hx-swap="innerHTML">Weekly now</button>
+       <button hx-post="/briefing/generate" hx-vals='{"kind": "monthly"}' hx-target="#gen-result" hx-swap="innerHTML">Monthly now</button>
+       <span id="gen-result" class="muted"></span></p>
+    <p class="muted" style="font-size:12px">Numbers first, prose second. The outlook is the model's read of the next 14 days for the index, not a forecast of conflict; the scorecard above tells you over time whether it carries signal.</p>
+  </div>
+</section>
+
+{% for b in briefs %}
+<section class="card">
+  <h2>{{ b.kind | capitalize }} brief, {{ b.period_start }}{% if b.period_end != b.period_start %} to {{ b.period_end }}{% endif %}
+    <span class="muted" style="font-weight:400">written {{ b.when }} by {{ b.provider or 'rule-based' }}{% if b.index_at is not none %}, index {{ b.index_at }}{% endif %}</span></h2>
+  <div style="white-space:pre-wrap; line-height:1.5">{{ b.summary }}</div>
+  {% if b.watch %}
+  <p style="margin-bottom:4px"><b>Watch</b></p>
+  <ul style="margin-top:0">{% for w in b.watch %}<li>{{ w }}</li>{% endfor %}</ul>
+  {% endif %}
+  {% if b.outlook_direction %}
+  <p><b>Outlook, 14 days (not a forecast):</b>
+    <span class="{{ 'bad' if b.outlook_direction == 'up' else ('ok' if b.outlook_direction == 'down' else 'muted') }}">{{ b.outlook_direction }}</span>, {{ b.outlook_confidence }} confidence.
+    {{ b.outlook_rationale }}
+    {% if b.triggers %}<br><span class="muted">Would change on: {{ b.triggers | join('; ') }}</span>{% endif %}
+    {% if b.grade %}<br><span class="{{ 'ok' if b.grade.hit else 'bad' }}">Graded: index went {{ b.grade.actual_direction }} ({{ '%+.1f' % b.grade.delta }}), {{ 'hit' if b.grade.hit else 'miss' }}.</span>{% endif %}
+  </p>
+  {% endif %}
+</section>
+{% else %}
+<section class="card"><p class="muted">No briefs yet. The daily digest at 07:30 SGT creates the first one; use Weekly now for an immediate brief.</p></section>
+{% endfor %}
+
+<script>
+(() => {
+  const P = {{ premium | tojson }};
+  line('c-premium', P.labels, [{ label: 'TSM minus SOX, 20d', data: P.data, borderColor: css('--s1') }], pct);
+})();
+</script>

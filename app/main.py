@@ -11,6 +11,7 @@ from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from fastapi.templating import Jinja2Templates
 
 from app import backup, config, db, scheduler
+from app.llm import briefs as briefs_mod
 from app.alerts import telegram
 from app.web import data
 
@@ -206,6 +207,31 @@ def backup_restore(request: Request, snapshot: str = Form(""), path: str = Form(
     htmx_only(request)
     try:
         return "Done: " + backup.restore(path.strip() or snapshot)
+    except Exception as e:
+        return f"Failed: {e}"
+
+
+def briefing_ctx() -> dict:
+    return {"mech": data.mechanical(), "premium": data.risk_premium(), "briefs": data.briefs(), "scorecard": data.scorecard()}
+
+
+@app.get("/briefing")
+def briefing(request: Request):
+    return render(request, "briefing.html", "Briefing", **briefing_ctx())
+
+
+@app.get("/partials/briefing")
+def briefing_partial(request: Request):
+    return render(request, "partials/briefing.html", "Briefing", **briefing_ctx())
+
+
+@app.post("/briefing/generate", response_class=PlainTextResponse)
+def briefing_generate(request: Request, kind: str = Form("weekly")):
+    htmx_only(request)
+    if kind not in ("weekly", "monthly"):
+        raise HTTPException(400)
+    try:
+        return "Done: " + briefs_mod.generate(kind) + ". Reload to read it."
     except Exception as e:
         return f"Failed: {e}"
 

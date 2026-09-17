@@ -18,6 +18,13 @@ def local_day(iso_utc: str) -> str:
     return datetime.fromisoformat(iso_utc).astimezone(LOCAL_TZ).date().isoformat()
 
 
+def next_day(first: str | None, utc: bool = False) -> str | None:
+    if not first:
+        return None
+    d = local_day(first) if utc else first
+    return (date.fromisoformat(d) + timedelta(days=1)).isoformat()
+
+
 def zero_fill(counts: dict[str, float], labels: list[str], first_day: str | None) -> dict[str, float]:
     """Counts are zero on days with coverage but no events. Before coverage starts they are unknown."""
     if not first_day:
@@ -110,7 +117,8 @@ def series(days: int = 120) -> dict[str, dict[str, float]]:
     out["zone_in_strait"] = zero_fill(in_strait, labels, since if zones_first else None)
 
     # AIS sightings: distinct hulls per day per named area
-    ais_first = rows("SELECT MIN(day) AS d FROM ais_sightings")[0]["d"]
+    # Live feeds start mid-day; the first partial day would read as an artificially quiet day
+    ais_first = next_day(rows("SELECT MIN(day) AS d FROM ais_sightings")[0]["d"])
     ccg_k, ccg_s, tank = defaultdict(set), defaultdict(set), defaultdict(set)
     for r in rows("SELECT day, mmsi, zone, cls FROM ais_sightings WHERE day >= ?", since):
         if r["cls"] == "coast_guard" and r["zone"] in ("kinmen", "matsu"):
@@ -124,14 +132,14 @@ def series(days: int = 120) -> dict[str, dict[str, float]]:
     out["tankers_ports"] = zero_fill({d: len(v) for d, v in tank.items()}, labels, ais_first)
 
     # ADS-B: distinct military aircraft per day, mean civil count per day
-    adsb_first = rows("SELECT MIN(day) AS d FROM adsb_sightings")[0]["d"]
+    adsb_first = next_day(rows("SELECT MIN(ts_utc) AS d FROM adsb_counts")[0]["d"], utc=True)
     mil = {r["day"]: r["n"] for r in rows("SELECT day, COUNT(DISTINCT hex) AS n FROM adsb_sightings WHERE day >= ? GROUP BY day", since)}
     out["mil_aircraft"] = zero_fill(mil, labels, adsb_first)
     civil = defaultdict(list)
     for r in rows("SELECT ts_utc, civil FROM adsb_counts WHERE ts_utc >= ?", f"{since}T00:00:00+00:00"):
         civil[local_day(r["ts_utc"])].append(r["civil"])
     # Traffic is much lower at night, so a day only counts once most of it is sampled (one sample a minute)
-    out["civil_traffic"] = {d: sum(v) / len(v) for d, v in civil.items() if len(v) >= 900}
+    out["civil_traffic"] = {d: sum(v) / len(v) for d, v in civil.items() if len(v) >= 450}
 
     # Polymarket: daily last probability (in percent) of the highest-volume market
     top = rows("SELECT market_id FROM market_odds ORDER BY volume DESC LIMIT 1")

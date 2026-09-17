@@ -227,6 +227,53 @@ def failures(limit: int = 20) -> list[dict]:
     return out
 
 
+def mechanical() -> dict:
+    """Rule-based signals for the Briefing page: index momentum, Taiwan risk premium, Polymarket drift."""
+    sc = rows("SELECT day, composite, military, economic, diplomatic, rhetoric FROM scores ORDER BY day DESC LIMIT 8")
+    momentum = {k: (round(sc[0][k] - sc[-1][k], 1) if len(sc) >= 2 else None) for k in ("composite", "military", "economic", "diplomatic", "rhetoric")}
+    prem = risk_premium(60)
+    o = odds()
+    hist = odds_history(30)
+    poly_change = None
+    if o and hist["series"]:
+        first = next((v for v in hist["series"][0]["data"] if v is not None), None)
+        poly_change = round(o[0]["probability"] * 100 - first, 1) if first is not None else None
+    return {"momentum": momentum, "risk_premium": prem["data"][-1] if prem["data"] else None,
+            "poly_now": round(o[0]["probability"] * 100, 1) if o else None, "poly_question": o[0]["question"] if o else None, "poly_change": poly_change}
+
+
+def risk_premium(days: int = 60, window: int = 20) -> dict:
+    """TSM 20-day return minus SOX 20-day return, per day. Negative means TSM lags its sector."""
+    since = (date.today() - timedelta(days=days + window + 10)).isoformat()
+    tsm = {r["day"]: r["close"] for r in rows("SELECT day, close FROM prices_daily WHERE symbol = 'TSM' AND day >= ? ORDER BY day", since)}
+    sox = {r["day"]: r["close"] for r in rows("SELECT day, close FROM prices_daily WHERE symbol = '^SOX' AND day >= ? ORDER BY day", since)}
+    days_common = sorted(set(tsm) & set(sox))
+    labels, out = [], []
+    for i in range(window, len(days_common)):
+        d, d0 = days_common[i], days_common[i - window]
+        labels.append(d)
+        out.append(round(((tsm[d] / tsm[d0]) - (sox[d] / sox[d0])) * 100, 2))
+    return {"labels": labels[-days:], "data": out[-days:]}
+
+
+def briefs(limit: int = 12) -> list[dict]:
+    out = rows("SELECT b.*, s.actual_direction, s.delta, s.hit FROM briefs b LEFT JOIN outlook_scores s ON s.brief_id = b.id "
+               "ORDER BY b.created_utc DESC LIMIT ?", limit)
+    for b in out:
+        b["when"] = local(b["created_utc"], "%d %b %H:%M")
+        b["watch"] = json.loads(b["watch"] or "[]")
+        b["triggers"] = json.loads(b["outlook_triggers"] or "[]")
+        b["grade"] = {"actual_direction": b["actual_direction"], "delta": b["delta"], "hit": b["hit"]} if b["actual_direction"] else None
+    return out
+
+
+def scorecard() -> dict:
+    g = rows("SELECT COUNT(*) AS n, COALESCE(SUM(hit), 0) AS hits FROM outlook_scores")[0]
+    pending = rows("SELECT COUNT(*) AS n FROM briefs WHERE kind IN ('weekly', 'monthly') AND outlook_direction IS NOT NULL "
+                   "AND id NOT IN (SELECT brief_id FROM outlook_scores)")[0]["n"]
+    return {"graded": g["n"], "hits": g["hits"], "pending": pending}
+
+
 def backups(limit: int = 30) -> list[dict]:
     out = rows("SELECT ts_utc, path, size_mb, ok, message FROM backups ORDER BY ts_utc DESC LIMIT ?", limit)
     for r in out:

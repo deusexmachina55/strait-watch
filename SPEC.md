@@ -93,6 +93,10 @@ strait-watch/
 - Watchdog: Telegram alert if any collector has not succeeded in N hours.
 - Status page: last run per job, LLM calls used today, DB size, last backup.
 
+### Phase 6: Briefing (added 2026-09-18)
+- Briefing tab: mechanical signals (index momentum, TSM vs SOX risk premium, Polymarket drift), daily/weekly/monthly LLM briefs from pre-aggregated facts, structured 14-day outlook graded against the index afterwards (scorecard). Same free LLM chain. Not a forecast of conflict.
+- Tab order: Overview, Briefing, Signals, Markets, News, Warnings, Map, System, Backup.
+
 ## Working agreement
 - Build only the phase asked for. Run it, test it, fix it, then commit and push.
 - Keep README.md updated with setup and operating notes.

@@ -9,7 +9,7 @@ from app import backup, db, scoring
 from app.collectors import adsb, advisories, ais, coast_guard, gdelt, japan_mod, msa, msa_zones, mnd, polymarket, prices, rss
 from app.scoring import watchdog
 from app.config import LOCAL_TZ, SETTINGS
-from app.llm import analyze, digest
+from app.llm import analyze, briefs, digest
 
 LLM = SETTINGS["llm"]
 
@@ -66,7 +66,7 @@ def start() -> None:
     add_job("advisories", advisories.run, hours=6)
     add_job("polymarket", polymarket.run, hours=1)
     add_job("msa_zones", msa_zones.run, minutes=30, run_now=False, next_run_time=datetime.now(timezone.utc) + timedelta(minutes=4))
-    add_job("adsb", adsb.run, minutes=1)
+    add_job("adsb", adsb.run, minutes=2)
     add_job("watchdog", watchdog.run, minutes=30, run_now=False)
     add_job("backup", backup.tick, minutes=5, run_now=False)
     ais.start()
@@ -74,4 +74,8 @@ def start() -> None:
     add_job("scoring", scoring.run, minutes=10, run_now=False, next_run_time=datetime.now(timezone.utc) + timedelta(minutes=2))
     add_job("llm_analyze", analyze.run, minutes=30, run_now=False, next_run_time=datetime.now(timezone.utc) + timedelta(minutes=3))
     add_job("digest", digest.run, CronTrigger(hour=LLM["digest_hour"], minute=LLM["digest_minute"], timezone=LOCAL_TZ), run_now=False)
+    B = SETTINGS["briefs"]
+    add_job("brief_weekly", briefs.weekly, CronTrigger(day_of_week=B["weekly_day"], hour=B["weekly_hour"], minute=B["weekly_minute"], timezone=LOCAL_TZ), run_now=False)
+    add_job("brief_monthly", briefs.monthly, CronTrigger(day=1, hour=B["monthly_hour"], minute=B["monthly_minute"], timezone=LOCAL_TZ), run_now=False)
+    add_job("outlook_grade", briefs.grade, hours=6, run_now=False)
     scheduler.start()

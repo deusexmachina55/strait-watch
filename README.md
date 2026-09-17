@@ -13,6 +13,12 @@ Phase 2b (map with live AIS and ADS-B layers) and the Phase 5 watchdog are done.
 - Derived indicators feed the index: closed-zone area within 300 km of Taiwan, zones in the Strait, China Coast Guard hulls at Kinmen/Matsu and in the Strait, tankers at Taiwan ports, military aircraft per day, mean civil traffic. Tripwires: any zone in the Strait, CCG surge at Kinmen, military aircraft surge.
 - English-titled MSA entries are duplicates of the Chinese ones with dead links; only Chinese entries (`lang = 'zh'`) are counted, translated and mapped.
 
+## Briefing
+- `/briefing`: numbers first, prose second. Tiles: 7-day momentum of the index and sub-scores, Taiwan risk premium (TSM 20-day return minus SOX 20-day return, negative means markets price Taiwan-specific risk), Polymarket 30-day change, outlook scorecard. Chart: risk premium over 60 days.
+- Briefs: the daily digest (07:30 SGT) is stored as the daily brief. Weekly briefs run Mondays 08:00 SGT for the previous 7 days, monthly on the 1st for the previous 30 (`config.toml` `[briefs]`). "Weekly now" and "Monthly now" generate one for the trailing period. Every brief goes to Telegram.
+- Input to the LLM is pre-aggregated facts only (index path and prior-period averages, PLA counts, closure zones, coast guard hulls, military aircraft, tripwires, top 10 items by severity, asset moves, Polymarket, the mechanical signals). The prompt requires every number to come from the input. Same free chain as the rest.
+- Outlook: each weekly and monthly brief ends with a direction (up, flat, down) for the index over 14 days, a confidence and triggers. The `outlook_grade` job compares it with the index 14 days later (flat band of 5 points) and the scorecard shows the hit rate. This is the check on whether the LLM's read carries any signal. It is an outlook, not a forecast of conflict.
+
 ## Backup
 - `/backup` page: set the destination folder (local drive or UNC path), nightly time (SGT), retention (7 daily, 4 weekly on Sundays, 12 monthly on the 1st) and enable it. Buttons: Test destination, Backup now. Settings are stored in the database (the service cannot write `config.toml`).
 - Each run writes a `VACUUM INTO` snapshot to `data\backups\` (last 3 kept), then copies it to `<destination>\daily\`, and to `weekly\` or `monthly\` on those days. The `backup` job checks every 5 minutes whether tonight's run is due.

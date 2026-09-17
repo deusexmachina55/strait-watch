@@ -48,10 +48,13 @@ def build() -> str:
 
 def run() -> str:
     text = build()
+    provider = None
     try:
         assessment, provider = chain.complete("digest", SYSTEM, text, json_mode=False)
         text += f"\n\nAssessment: {assessment[:600]}"
     except Exception as e:
         log.warning("digest assessment skipped: %r", e)
     telegram.send(text)
+    from app.llm import briefs
+    briefs.store_daily(text, provider)
     return "sent"

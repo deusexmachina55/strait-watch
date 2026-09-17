@@ -2,9 +2,10 @@
 
 Read this first in a new session, after CLAUDE.md, SPEC.md and DECISIONS.md. It records what a fresh session cannot derive from the code. Append to it at the end of every phase; keep the "Current state" section accurate.
 
-## Current state (2026-09-18, 01:30 SGT)
+## Current state (2026-09-18, 02:10 SGT)
 - Phases 1 to 4, the map (Phase 2b with AIS and ADS-B) and the watchdog are live on the service since the 01:14 reboot. All jobs green: 57 zones parsed on first run, AIS streaming (about 60 vessels per 30 min), ADS-B polling, translations caught up.
 - Backup tab (Phase 5) built and tested on a copy, committed, needs a restart to go live. The user sets destination (drive or UNC path), schedule and retention in the browser; settings live in the `settings` table because the service cannot write `config.toml`. A local drive folder needs Modify rights for `svc-straitwatch` (icacls); a UNC path needs `BACKUP_SMB_USER` and `BACKUP_SMB_PASS` in `.env`. Nothing runs until the user enables it and a destination passes "Test destination". Restore is on the same page and works without a restart (scheduler paused, integrity check, safety copy, SQLite online backup into the live DB); tested: 100 deleted rows came back.
+- Briefing tab (Phase 6) built and tested on a copy (a weekly brief generated via Groq in 7 s, grounded in the given numbers), committed, needs a restart. Tab order now: Overview, Briefing, Signals, Markets, News, Warnings, Map, System, Backup.
 - Pending: packaging for install on another PC (thinking only, not built; see "Packaging" below).
 - First morning digest with LLM assessment due 07:30 SGT on 2026-09-18.
 
@@ -35,6 +36,8 @@ Read this first in a new session, after CLAUDE.md, SPEC.md and DECISIONS.md. It 
 - Index: sub-score = 50 + 15 × (0.6 × weighted mean z + 0.4 × max z), composite = weighted sub-scores. Baselines are 30/90-day, blended with priors that fade over 14 days. Count-type indicators for the current day use a trailing-24h estimate so the index does not collapse at midnight.
 - Everything is served locally (Chart.js, htmx, Leaflet vendored under `app/web/static`, behind basic auth). Map tiles come from Esri World Ocean Base (free, attribution required); CARTO tiles need a key now.
 - Translations: original text first, English in parentheses, on every page and in Telegram. Done by the LLM job (40 titles and 40 MSA warnings per 30 minutes) so new items lag by up to half an hour.
+- Briefing: facts are pre-aggregated in `app/llm/briefs.py::facts` (index path and prior-period averages, PLA, zones, CCG, aircraft, tripwires, top 10 items, asset moves, Polymarket, mechanical signals). The prompt demands JSON with summary, watch list and a 14-day outlook (direction, confidence, rationale, triggers). `outlook_grade` compares the direction with the index 14 days later (flat band 5 points) into `outlook_scores`. The daily digest is stored as a daily brief. Mechanical signals: 7-day momentum, TSM minus SOX 20-day return ("risk premium"), Polymarket 30-day drift. Metaculus was checked and needs an account token, so it is out.
+- Live-feed indicators (AIS, ADS-B) start counting the day after the feed came up, so a mid-day start does not read as a quiet day. adsb.lol returns 429 when polled too often (two processes polling during tests); the job now polls every 2 minutes and treats 429 as a skipped poll.
 - Pages auto-refresh via htmx partials (60 s news/markets/overview, 5 min warnings/signals, 30 s system); the map fetches `/api/map` every 60 s.
 
 ## User preferences
@@ -47,6 +50,6 @@ Read this first in a new session, after CLAUDE.md, SPEC.md and DECISIONS.md. It 
 - `Build-Package.ps1` zips the repo with `.python\` and `.venv\` (about 300 MB) minus `data\`, `logs\`, `.env`, `.git`. On the target: unzip to `C:\claudespace\strait-watch`, run `setup.ps1` as admin with `-InterfaceAlias` and `-LanSubnet` for that LAN; it prompts for secrets, creates the service account, ACLs, firewall rule and service. Copy a backup of `data\strait.db` in first to keep history. The uv-managed Python is relocatable as long as the folder path is the same.
 
 ## Next steps, in order
-1. Backup tab (in progress), then user sets the destination and runs "Backup now" once.
+1. User restarts; sets the backup destination and runs "Backup now" once; presses "Weekly now" on Briefing for a first brief.
 2. Packaging script if the user wants a second install.
 3. Tuning after two weeks of data: priors in `config.toml`, tripwire thresholds, MSA zone kinds.
