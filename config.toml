@@ -247,10 +247,11 @@ cooldown = 24
 providers = [
   { name = "gemini", model = "gemini-3.6-flash" },
   { name = "groq", model = "openai/gpt-oss-120b" },
+  { name = "gemini", model = "gemini-3.1-flash-lite" },
   { name = "openrouter", model = "google/gemma-4-31b-it:free" },
 ]
 # Hard cap on LLM calls per day (SGT), all purposes combined
-daily_cap = 150
+daily_cap = 200
 # Items per analysis call, and how far back to analyze (older relevant items are left unscored)
 batch_size = 30
 max_item_age_days = 14

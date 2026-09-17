@@ -178,7 +178,7 @@ def sources() -> list[str]:
 
 
 def items(source: str = "", show_all: bool = False, q: str = "", limit: int = 60) -> list[dict]:
-    sql, params = ("SELECT i.source, i.url, i.title, i.published_utc, i.tags, a.title_en, a.severity, a.category, a.summary "
+    sql, params = ("SELECT i.source, i.url, i.title, i.published_utc, i.tags, COALESCE(i.title_en, a.title_en) AS title_en, a.severity, a.category, a.summary "
                    "FROM items i LEFT JOIN item_analysis a ON a.item_id = i.id WHERE 1=1"), []
     if not show_all:
         sql += " AND i.relevant = 1"
@@ -186,8 +186,8 @@ def items(source: str = "", show_all: bool = False, q: str = "", limit: int = 60
         sql += " AND i.source = ?"
         params.append(source)
     if q:
-        sql += " AND (i.title LIKE ? OR a.title_en LIKE ?)"
-        params += [f"%{q}%", f"%{q}%"]
+        sql += " AND (i.title LIKE ? OR i.title_en LIKE ? OR a.title_en LIKE ?)"
+        params += [f"%{q}%"] * 3
     sql += " ORDER BY i.published_utc DESC LIMIT ?"
     out = rows(sql, *params, limit)
     for r in out:
@@ -197,7 +197,7 @@ def items(source: str = "", show_all: bool = False, q: str = "", limit: int = 60
 
 
 def notices(limit: int = 60) -> list[dict]:
-    out = rows("SELECT i.source, i.url, i.title, i.published_utc, a.title_en, a.severity FROM items i "
+    out = rows("SELECT i.source, i.url, i.title, i.published_utc, COALESCE(i.title_en, a.title_en) AS title_en, a.severity FROM items i "
                "LEFT JOIN item_analysis a ON a.item_id = i.id WHERE i.source IN ('Japan MOD', 'Taiwan Coast Guard') "
                "ORDER BY i.published_utc DESC LIMIT ?", limit)
     for r in out:

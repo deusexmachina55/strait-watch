@@ -170,5 +170,6 @@ def init() -> None:
         conn.execute("PRAGMA journal_mode=WAL")
         conn.executescript(SCHEMA)
         # Columns added after the table was created
-        if "title_en" not in [r[1] for r in conn.execute("PRAGMA table_info(msa_warnings)")]:
-            conn.execute("ALTER TABLE msa_warnings ADD COLUMN title_en TEXT")
+        for table in ("msa_warnings", "items"):
+            if "title_en" not in [r[1] for r in conn.execute(f"PRAGMA table_info({table})")]:
+                conn.execute(f"ALTER TABLE {table} ADD COLUMN title_en TEXT")
