@@ -2,10 +2,11 @@
 
 Read this first in a new session, after CLAUDE.md, SPEC.md and DECISIONS.md. It records what a fresh session cannot derive from the code. Append to it at the end of every phase; keep the "Current state" section accurate.
 
-## Current state (2026-09-18, 01:10 SGT)
-- Phases 1 to 4 done and live. Phase 2b (map, with the AIS and ADS-B "v2" layers) built and tested on a database copy, committed, **not yet running on the service**: needs one elevated restart by the user.
-- Phase 5 remaining: nightly SQLite snapshot to the NAS (needs NAS share path and a dedicated NAS user from the user), log rotation (NSSM already rotates `logs\service.log` at 10 MB), status page (System page mostly covers it). The watchdog part of Phase 5 is done (in the map commit).
-- Pending after restart: verify `msa_zones`, `adsb`, `ais`, `watchdog` jobs on the System page; check the Map tab; check the first morning digest (07:30 SGT).
+## Current state (2026-09-18, 01:30 SGT)
+- Phases 1 to 4, the map (Phase 2b with AIS and ADS-B) and the watchdog are live on the service since the 01:14 reboot. All jobs green: 57 zones parsed on first run, AIS streaming (about 60 vessels per 30 min), ADS-B polling, translations caught up.
+- Backup tab (Phase 5) built and tested on a copy, committed, needs a restart to go live. The user sets destination (drive or UNC path), schedule and retention in the browser; settings live in the `settings` table because the service cannot write `config.toml`. A local drive folder needs Modify rights for `svc-straitwatch` (icacls); a UNC path needs `BACKUP_SMB_USER` and `BACKUP_SMB_PASS` in `.env`. Nothing runs until the user enables it and a destination passes "Test destination".
+- Pending: packaging for install on another PC (thinking only, not built; see "Packaging" below).
+- First morning digest with LLM assessment due 07:30 SGT on 2026-09-18.
 
 ## How the box is run
 - Windows service `StraitWatch` via NSSM (`C:\Program Files\nssm\nssm.exe`), runs as local user `svc-straitwatch`. Service account has Read and Execute on the repo, Modify only on `data\` and `logs\`, Read on `.env`. Python and packages live inside the repo (`.python\`, `.venv\`), installed with uv.
@@ -42,7 +43,10 @@ Read this first in a new session, after CLAUDE.md, SPEC.md and DECISIONS.md. It 
 - Prefers not to be woken by permission prompts; blanket approval given on 2026-09-18 for non-elevated work and pushes.
 - Wants originals plus English, not English only.
 
+## Packaging (idea, not built)
+- `Build-Package.ps1` zips the repo with `.python\` and `.venv\` (about 300 MB) minus `data\`, `logs\`, `.env`, `.git`. On the target: unzip to `C:\claudespace\strait-watch`, run `setup.ps1` as admin with `-InterfaceAlias` and `-LanSubnet` for that LAN; it prompts for secrets, creates the service account, ACLs, firewall rule and service. Copy a backup of `data\strait.db` in first to keep history. The uv-managed Python is relocatable as long as the folder path is the same.
+
 ## Next steps, in order
-1. User restarts the service; verify map layers and the four new jobs.
-2. Phase 5: NAS backup (`VACUUM INTO` nightly, copy to SMB share with retention 7/4/12), which needs the share path and credentials from the user. Watchdog and log rotation already exist.
+1. Backup tab (in progress), then user sets the destination and runs "Backup now" once.
+2. Packaging script if the user wants a second install.
 3. Tuning after two weeks of data: priors in `config.toml`, tripwire thresholds, MSA zone kinds.

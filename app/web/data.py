@@ -227,6 +227,13 @@ def failures(limit: int = 20) -> list[dict]:
     return out
 
 
+def backups(limit: int = 30) -> list[dict]:
+    out = rows("SELECT ts_utc, path, size_mb, ok, message FROM backups ORDER BY ts_utc DESC LIMIT ?", limit)
+    for r in out:
+        r["when"] = local(r["ts_utc"], "%Y-%m-%d %H:%M")
+    return out
+
+
 def db_size_mb() -> float:
     total = sum(p.stat().st_size for p in DB_PATH.parent.glob(DB_PATH.name + "*"))
     return round(total / 1_048_576, 1)

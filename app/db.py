@@ -223,6 +223,20 @@ CREATE TABLE IF NOT EXISTS adsb_counts (
     military INTEGER NOT NULL
 );
 
+-- Phase 5: user settings (backup destination) and backup history
+CREATE TABLE IF NOT EXISTS settings (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS backups (
+    id INTEGER PRIMARY KEY,
+    ts_utc TEXT NOT NULL,
+    path TEXT NOT NULL,
+    size_mb REAL NOT NULL,
+    ok INTEGER NOT NULL,
+    message TEXT
+);
+
 -- Prices: 5-minute bars (rolling) and daily closes
 CREATE TABLE IF NOT EXISTS prices_intraday (
     symbol TEXT NOT NULL,

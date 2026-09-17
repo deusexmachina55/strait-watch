@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="grid" style="grid-template-columns: 1fr 1fr">
+  <div class="card">
+    <h2>Destination and schedule</h2>
+    <form hx-post="/backup/settings" hx-target="#result" hx-swap="innerHTML">
+      <p><label>Backup folder<br><input type="text" name="backup_dir" value="{{ cfg.backup_dir }}" size="50" placeholder="D:\Backups\strait-watch or \\nas\share\strait-watch"></label></p>
+      <p><label>Nightly at (SGT) <input type="text" name="backup_time" value="{{ cfg.backup_time }}" size="6" pattern="[0-2][0-9]:[0-5][0-9]"></label>
+         <label style="margin-left:12px"><input type="checkbox" name="backup_enabled" value="1" {{ 'checked' if cfg.backup_enabled == '1' }}> enabled</label></p>
+      <p>Keep <input type="text" name="keep_daily" value="{{ cfg.keep_daily }}" size="3"> daily,
+         <input type="text" name="keep_weekly" value="{{ cfg.keep_weekly }}" size="3"> weekly (Sundays),
+         <input type="text" name="keep_monthly" value="{{ cfg.keep_monthly }}" size="3"> monthly (1st)</p>
+      <p><button type="submit">Save</button>
+         <button type="button" hx-post="/backup/test" hx-target="#result" hx-swap="innerHTML" hx-include="closest form">Test destination</button>
+         <button type="button" hx-post="/backup/run" hx-target="#result" hx-swap="innerHTML">Backup now</button>
+         <span id="result" class="muted"></span></p>
+    </form>
+    <p class="muted" style="font-size:12px">
+      The service runs as the local user <code>svc-straitwatch</code>. A local drive folder must give that user Modify rights (setup.ps1 does not do this for folders outside the repo; grant it with
+      <code>icacls "D:\Backups\strait-watch" /grant svc-straitwatch:(OI)(CI)M</code> from an admin prompt).
+      A UNC path on the NAS needs a NAS user with write access to that share: add <code>BACKUP_SMB_USER</code> and <code>BACKUP_SMB_PASS</code> to <code>.env</code> and restart the service.
+      A local snapshot is always written to <code>data\backups\</code> first (last 3 kept), then copied. Restore: stop the service, replace <code>data\strait.db</code> with a snapshot, start the service.
+    </p>
+  </div>
+  <div class="card" id="history" hx-get="/partials/backup" hx-trigger="every 30s" hx-swap="innerHTML">
+    {% include "partials/backup.html" %}
+  </div>
+</section>
+{% endblock %}

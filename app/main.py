@@ -4,12 +4,13 @@ import time
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 
-from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi import Depends, FastAPI, Form, HTTPException, Request
+from fastapi.responses import PlainTextResponse
 from fastapi.responses import FileResponse
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from fastapi.templating import Jinja2Templates
 
-from app import config, db, scheduler
+from app import backup, config, db, scheduler
 from app.alerts import telegram
 from app.web import data
 
@@ -88,7 +89,8 @@ def signals_ctx() -> dict:
 
 
 def system_ctx() -> dict:
-    return {"failures": data.failures(), "db_size": data.db_size_mb(), "llm": data.llm_usage()}
+    return {"failures": data.failures(), "db_size": data.db_size_mb(), "llm": data.llm_usage(),
+            "last_backup": next((b for b in data.backups() if b["ok"]), None)}
 
 
 @app.get("/")
@@ -149,6 +151,54 @@ def map_page(request: Request):
 @app.get("/api/map")
 def map_api(day: str = "", days: int = 90):
     return data.map_data(day or None, min(days, 365))
+
+
+def backup_ctx() -> dict:
+    history = data.backups()
+    return {"history": history, "last_ok": next((b for b in history if b["ok"]), None), "db_size": data.db_size_mb()}
+
+
+@app.get("/backup")
+def backup_page(request: Request):
+    return render(request, "backup.html", "Backup", cfg=backup.settings(), **backup_ctx())
+
+
+@app.get("/partials/backup")
+def backup_partial(request: Request):
+    return render(request, "partials/backup.html", "Backup", **backup_ctx())
+
+
+def htmx_only(request: Request) -> None:
+    # Only htmx-issued posts carry this header; blocks cross-site form posts reusing cached basic auth
+    if request.headers.get("hx-request") != "true":
+        raise HTTPException(403)
+
+
+@app.post("/backup/settings", response_class=PlainTextResponse)
+def backup_settings(request: Request, backup_dir: str = Form(""), backup_time: str = Form("02:30"), backup_enabled: str = Form("0"),
+                    keep_daily: int = Form(7), keep_weekly: int = Form(4), keep_monthly: int = Form(12)):
+    htmx_only(request)
+    backup.save_settings({"backup_dir": backup_dir, "backup_time": backup_time, "backup_enabled": "1" if backup_enabled == "1" else "0",
+                          "keep_daily": keep_daily, "keep_weekly": keep_weekly, "keep_monthly": keep_monthly})
+    return "Saved."
+
+
+@app.post("/backup/test", response_class=PlainTextResponse)
+def backup_test(request: Request, backup_dir: str = Form("")):
+    htmx_only(request)
+    try:
+        return backup.test_destination(backup_dir)
+    except Exception as e:
+        return f"Failed: {e}"
+
+
+@app.post("/backup/run", response_class=PlainTextResponse)
+def backup_run(request: Request):
+    htmx_only(request)
+    try:
+        return "Done: " + backup.run(manual=True)
+    except Exception as e:
+        return f"Failed: {e}"
 
 
 @app.get("/system")

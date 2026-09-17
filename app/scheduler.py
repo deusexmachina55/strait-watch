@@ -5,7 +5,7 @@ from datetime import datetime, timedelta, timezone
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 
-from app import db, scoring
+from app import backup, db, scoring
 from app.collectors import adsb, advisories, ais, coast_guard, gdelt, japan_mod, msa, msa_zones, mnd, polymarket, prices, rss
 from app.scoring import watchdog
 from app.config import LOCAL_TZ, SETTINGS
@@ -68,6 +68,7 @@ def start() -> None:
     add_job("msa_zones", msa_zones.run, minutes=30, run_now=False, next_run_time=datetime.now(timezone.utc) + timedelta(minutes=4))
     add_job("adsb", adsb.run, minutes=1)
     add_job("watchdog", watchdog.run, minutes=30, run_now=False)
+    add_job("backup", backup.tick, minutes=5, run_now=False)
     ais.start()
     # Index and tripwires, shortly after the collectors have had a chance to run
     add_job("scoring", scoring.run, minutes=10, run_now=False, next_run_time=datetime.now(timezone.utc) + timedelta(minutes=2))

@@ -13,6 +13,13 @@ Phase 2b (map with live AIS and ADS-B layers) and the Phase 5 watchdog are done.
 - Derived indicators feed the index: closed-zone area within 300 km of Taiwan, zones in the Strait, China Coast Guard hulls at Kinmen/Matsu and in the Strait, tankers at Taiwan ports, military aircraft per day, mean civil traffic. Tripwires: any zone in the Strait, CCG surge at Kinmen, military aircraft surge.
 - English-titled MSA entries are duplicates of the Chinese ones with dead links; only Chinese entries (`lang = 'zh'`) are counted, translated and mapped.
 
+## Backup
+- `/backup` page: set the destination folder (local drive or UNC path), nightly time (SGT), retention (7 daily, 4 weekly on Sundays, 12 monthly on the 1st) and enable it. Buttons: Test destination, Backup now. Settings are stored in the database (the service cannot write `config.toml`).
+- Each run writes a `VACUUM INTO` snapshot to `data\backups\` (last 3 kept), then copies it to `<destination>\daily\`, and to `weekly\` or `monthly\` on those days. The `backup` job checks every 5 minutes whether tonight's run is due.
+- Local drive: the service account `svc-straitwatch` needs Modify on the folder, e.g. `icacls "D:\Backups\strait-watch" /grant svc-straitwatch:(OI)(CI)M` from an admin prompt.
+- UNC path: put a NAS user with write access to that share in `.env` as `BACKUP_SMB_USER` and `BACKUP_SMB_PASS`, restart the service. The job runs `net use` before copying.
+- Restore: stop the service, replace `data\strait.db` (delete `strait.db-wal` and `strait.db-shm` if present) with a snapshot, start the service.
+
 ## Watchdog
 The `watchdog` job (every 30 minutes) sends a Telegram alert when a job has had no successful run within its allowed age (`config.toml` `[watchdog.max_age_hours]`), one alert per job per 12 hours. Alerts are listed in the tripwire log as `watchdog_<job>`.
 
