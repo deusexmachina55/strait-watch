@@ -47,9 +47,7 @@ function Read-Secret([string]$Prompt) {
     $value
 }
 
-function Get-Nssm {
-    $exe = Join-Path $NssmDir 'nssm.exe'
-    if (Test-Path $exe) { return $exe }
+function Get-WingetNssm {
     Get-ChildItem 'C:\Program Files\WinGet\Packages\NSSM.NSSM*' -Recurse -Filter nssm.exe -ErrorAction SilentlyContinue |
         Where-Object FullName -match '\\win64\\' | Select-Object -First 1 -ExpandProperty FullName
 }
@@ -100,10 +98,20 @@ if ((Get-NetConnectionProfile -InterfaceAlias $InterfaceAlias).NetworkCategory -
     Invoke-Step 'Set network profile to Private' "Set-NetConnectionProfile -InterfaceAlias '$InterfaceAlias' -NetworkCategory Private"
 }
 
-# 4. NSSM, machine-wide so the service account can execute it
-if (-not (Get-Nssm)) {
-    Invoke-Step 'Install NSSM (winget, machine scope)' 'winget install --id NSSM.NSSM -e --scope machine --disable-interactivity'
-    if (-not (Get-Nssm)) {
+# 4. NSSM in Program Files. winget keeps the installing user's ACL on the extracted exe,
+#    which the service account cannot execute. A copy inherits the Program Files ACL.
+$nssm = Join-Path $NssmDir 'nssm.exe'
+if (-not (Test-Path $nssm)) {
+    if (-not (Get-WingetNssm)) {
+        Invoke-Step 'Install NSSM (winget, machine scope)' 'winget install --id NSSM.NSSM -e --scope machine --disable-interactivity'
+    }
+    $wingetNssm = Get-WingetNssm
+    if ($wingetNssm) {
+        Invoke-Step 'Copy NSSM to Program Files' @"
+New-Item -ItemType Directory -Force '$NssmDir' | Out-Null
+Copy-Item '$wingetNssm' '$nssm'
+"@
+    } else {
         Invoke-Step 'Install NSSM from official zip (hash verified)' @"
 `$zip = Join-Path `$env:TEMP 'nssm.zip'
 `$tmp = Join-Path `$env:TEMP 'nssm'
@@ -115,8 +123,7 @@ Copy-Item (Join-Path `$tmp 'nssm-2.24-101-g897c7ad\win64\nssm.exe') '$NssmDir\ns
 "@
     }
 }
-$nssm = Get-Nssm
-if (-not $nssm) { throw 'NSSM not found after install' }
+if (-not (Test-Path $nssm)) { throw 'NSSM not found after install' }
 
 # 5. Service account (password is random, never stored or shown)
 if (-not (Test-Service)) {
@@ -173,7 +180,10 @@ if (-not (Test-Service)) {
 & '$nssm' start $ServiceName
 "@
 } else {
-    Invoke-Step 'Restart service' "& '$nssm' restart $ServiceName"
+    if ((Get-CimInstance Win32_Service -Filter "Name='$ServiceName'").PathName.Trim('"') -ne $nssm) {
+        Invoke-Step 'Point service at NSSM in Program Files' "sc.exe config $ServiceName binPath= '`"$nssm`"'"
+    }
+    Invoke-Step 'Restart service' "Restart-Service $ServiceName"
 }
 Remove-Variable pwPlain, pw -ErrorAction SilentlyContinue
 

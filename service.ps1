@@ -14,10 +14,8 @@ param(
 $ErrorActionPreference = 'Stop'
 
 $ServiceName = 'StraitWatch'
-$nssm = @('C:\Program Files\nssm\nssm.exe') + @(Get-ChildItem 'C:\Program Files\WinGet\Packages\NSSM.NSSM*' -Recurse -Filter nssm.exe -ErrorAction SilentlyContinue |
-    Where-Object FullName -match '\\win64\\' | Select-Object -ExpandProperty FullName) |
-    Where-Object { Test-Path $_ } | Select-Object -First 1
-if (-not $nssm) { throw 'NSSM not found. Run setup.ps1 first.' }
+$nssm = 'C:\Program Files\nssm\nssm.exe'
+if (-not (Test-Path $nssm)) { throw 'NSSM not found. Run setup.ps1 first.' }
 
 if ($Action -eq 'status') {
     & $nssm status $ServiceName
