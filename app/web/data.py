@@ -59,7 +59,7 @@ def msa(days: int = 90) -> dict:
 
 
 def msa_warnings(region: str = "", military_only: bool = True, limit: int = 200) -> list[dict]:
-    sql, params = "SELECT region, number, title, issued_date, url FROM msa_warnings WHERE 1=1", []
+    sql, params = "SELECT region, number, title, title_en, issued_date, url FROM msa_warnings WHERE 1=1", []
     if region:
         sql += " AND region = ?"
         params.append(region)
@@ -152,16 +152,17 @@ def sources() -> list[str]:
 
 
 def items(source: str = "", show_all: bool = False, q: str = "", limit: int = 60) -> list[dict]:
-    sql, params = "SELECT source, url, title, published_utc, tags FROM items WHERE 1=1", []
+    sql, params = ("SELECT i.source, i.url, i.title, i.published_utc, i.tags, a.title_en, a.severity, a.category, a.summary "
+                   "FROM items i LEFT JOIN item_analysis a ON a.item_id = i.id WHERE 1=1"), []
     if not show_all:
-        sql += " AND relevant = 1"
+        sql += " AND i.relevant = 1"
     if source:
-        sql += " AND source = ?"
+        sql += " AND i.source = ?"
         params.append(source)
     if q:
-        sql += " AND title LIKE ?"
-        params.append(f"%{q}%")
-    sql += " ORDER BY published_utc DESC LIMIT ?"
+        sql += " AND (i.title LIKE ? OR a.title_en LIKE ?)"
+        params += [f"%{q}%", f"%{q}%"]
+    sql += " ORDER BY i.published_utc DESC LIMIT ?"
     out = rows(sql, *params, limit)
     for r in out:
         r["when"] = local(r["published_utc"])
@@ -170,8 +171,9 @@ def items(source: str = "", show_all: bool = False, q: str = "", limit: int = 60
 
 
 def notices(limit: int = 60) -> list[dict]:
-    out = rows("SELECT source, url, title, published_utc, tags FROM items WHERE source IN ('Japan MOD', 'Taiwan Coast Guard') "
-               "ORDER BY published_utc DESC LIMIT ?", limit)
+    out = rows("SELECT i.source, i.url, i.title, i.published_utc, a.title_en, a.severity FROM items i "
+               "LEFT JOIN item_analysis a ON a.item_id = i.id WHERE i.source IN ('Japan MOD', 'Taiwan Coast Guard') "
+               "ORDER BY i.published_utc DESC LIMIT ?", limit)
     for r in out:
         r["when"] = local(r["published_utc"], "%d %b")
     return out
@@ -199,3 +201,11 @@ def failures(limit: int = 20) -> list[dict]:
 def db_size_mb() -> float:
     total = sum(p.stat().st_size for p in DB_PATH.parent.glob(DB_PATH.name + "*"))
     return round(total / 1_048_576, 1)
+
+
+def llm_usage() -> dict:
+    start = datetime.now(LOCAL_TZ).replace(hour=0, minute=0, second=0, microsecond=0).astimezone(timezone.utc)
+    by = rows("SELECT provider, SUM(ok) AS ok, COUNT(*) - SUM(ok) AS failed FROM llm_calls WHERE ts_utc >= ? GROUP BY provider",
+              start.isoformat(timespec="seconds"))
+    return {"today": sum(r["ok"] + r["failed"] for r in by), "cap": SETTINGS["llm"]["daily_cap"], "providers": by,
+            "analyzed": rows("SELECT COUNT(*) AS n FROM item_analysis")[0]["n"]}

@@ -125,7 +125,7 @@
       <tr>
         <td class="nowrap muted">{{ it.when }}</td>
         <td class="nowrap">{{ it.source }}</td>
-        <td><a href="{{ it.url }}" target="_blank" rel="noopener">{{ it.title }}</a></td>
+        <td>{% if it.severity %}<span class="sev sev{{ it.severity }}">{{ it.severity }}</span> {% endif %}<a href="{{ it.url }}" target="_blank" rel="noopener">{{ it.title_en or it.title }}</a></td>
       </tr>
       {% else %}
       <tr><td class="muted">No items yet.</td></tr>

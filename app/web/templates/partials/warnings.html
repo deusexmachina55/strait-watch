@@ -9,7 +9,7 @@
         <td class="nowrap muted">{{ w.issued_date }}</td>
         <td class="nowrap">{{ w.region }}</td>
         <td class="nowrap">{{ w.number or '' }}</td>
-        <td><a href="{{ w.url }}" target="_blank" rel="noopener">{{ w.title }}</a></td>
+        <td><a href="{{ w.url }}" target="_blank" rel="noopener">{{ w.title }}</a>{% if w.title_en %} <span class="muted">({{ w.title_en }})</span>{% endif %}</td>
       </tr>
       {% else %}
       <tr><td colspan="4" class="muted">No warnings match.</td></tr>
@@ -23,7 +23,7 @@
       <table>
         <tbody>
         {% for n in notices %}
-        <tr><td class="nowrap muted">{{ n.when }}</td><td class="nowrap">{{ n.source }}</td><td><a href="{{ n.url }}" target="_blank" rel="noopener">{{ n.title }}</a></td></tr>
+        <tr><td class="nowrap muted">{{ n.when }}</td><td class="nowrap">{{ n.source }}</td><td>{% if n.severity %}<span class="sev sev{{ n.severity }}">{{ n.severity }}</span> {% endif %}<a href="{{ n.url }}" target="_blank" rel="noopener">{{ n.title }}</a>{% if n.title_en %} <span class="muted">({{ n.title_en }})</span>{% endif %}</td></tr>
         {% endfor %}
         </tbody>
       </table>

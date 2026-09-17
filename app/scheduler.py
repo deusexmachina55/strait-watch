@@ -7,7 +7,10 @@ from apscheduler.triggers.cron import CronTrigger
 
 from app import db, scoring
 from app.collectors import advisories, coast_guard, gdelt, japan_mod, msa, mnd, polymarket, prices, rss
-from app.config import LOCAL_TZ
+from app.config import LOCAL_TZ, SETTINGS
+from app.llm import analyze, digest
+
+LLM = SETTINGS["llm"]
 
 log = logging.getLogger("uvicorn.error")
 scheduler = AsyncIOScheduler(timezone=timezone.utc)
@@ -63,4 +66,6 @@ def start() -> None:
     add_job("polymarket", polymarket.run, hours=1)
     # Index and tripwires, shortly after the collectors have had a chance to run
     add_job("scoring", scoring.run, minutes=10, run_now=False, next_run_time=datetime.now(timezone.utc) + timedelta(minutes=2))
+    add_job("llm_analyze", analyze.run, minutes=30, run_now=False, next_run_time=datetime.now(timezone.utc) + timedelta(minutes=3))
+    add_job("digest", digest.run, CronTrigger(hour=LLM["digest_hour"], minute=LLM["digest_minute"], timezone=LOCAL_TZ), run_now=False)
     scheduler.start()

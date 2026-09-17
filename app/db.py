@@ -120,6 +120,28 @@ CREATE TABLE IF NOT EXISTS tripwire_log (
 );
 CREATE INDEX IF NOT EXISTS tripwire_fired ON tripwire_log (tripwire, fired_utc);
 
+-- Phase 4: LLM analysis per item and call accounting
+CREATE TABLE IF NOT EXISTS item_analysis (
+    item_id INTEGER PRIMARY KEY,
+    category TEXT NOT NULL,
+    severity INTEGER NOT NULL,
+    physical INTEGER NOT NULL,
+    novel INTEGER NOT NULL,
+    title_en TEXT,
+    summary TEXT,
+    provider TEXT,
+    analyzed_utc TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS llm_calls (
+    id INTEGER PRIMARY KEY,
+    ts_utc TEXT NOT NULL,
+    provider TEXT NOT NULL,
+    model TEXT NOT NULL,
+    purpose TEXT NOT NULL,
+    ok INTEGER NOT NULL,
+    error TEXT
+);
+
 -- Prices: 5-minute bars (rolling) and daily closes
 CREATE TABLE IF NOT EXISTS prices_intraday (
     symbol TEXT NOT NULL,
@@ -147,3 +169,6 @@ def init() -> None:
     with closing(connect()) as conn:
         conn.execute("PRAGMA journal_mode=WAL")
         conn.executescript(SCHEMA)
+        # Columns added after the table was created
+        if "title_en" not in [r[1] for r in conn.execute("PRAGMA table_info(msa_warnings)")]:
+            conn.execute("ALTER TABLE msa_warnings ADD COLUMN title_en TEXT")

@@ -4,7 +4,15 @@ Personal early-warning dashboard for China/Taiwan/US tension in the Taiwan Strai
 See SPEC.md for scope and DECISIONS.md for locked decisions and security requirements.
 
 ## Current phase
-Phase 3: scoring and tripwires. Phases 1 (service) and 2 (collectors, dashboard) are done.
+Phase 4: LLM layer. Phases 1 (service), 2 (collectors, pages) and 3 (scoring, tripwires) are done.
+
+## LLM layer
+- Chain in `config.toml` `[llm]`: Gemini, then Groq, then OpenRouter, all free tiers. A provider is skipped when its key is missing from `.env`, and the next one is tried on any error or rate limit. Every call is logged in `llm_calls`; a hard daily cap (`daily_cap`, SGT day) stops all LLM work when reached.
+- `llm_analyze` job (every 30 min): sends up to `batch_size` unanalyzed relevant items from the last `max_item_age_days` days and gets back category, severity 1 to 5, physical vs rhetoric, novel vs rehash, an English title for non-English items and a one-line summary (`item_analysis`). It also translates untranslated military MSA warning titles (40 per run). Translations show in parentheses on the News and Warnings pages.
+- Severity feeds the index: daily sums of physical-item severity go into the military sub-score, the rest into rhetoric (`llm_physical`, `llm_rhetoric` in `[scoring]`).
+- Keyword tripwire alerts get a two-sentence LLM summary when a provider answers; alerts never wait on a failed provider.
+- `digest` job at 07:30 SGT (`digest_hour`, `digest_minute`): Telegram message with the index and its change, PLA counts, tripwires in the last 24 h, top 5 items by severity, 1-day asset moves, and a two-sentence LLM assessment.
+- The System page shows calls today per provider against the cap.
 
 ## Pages
 | Page | Content | Auto-refresh |

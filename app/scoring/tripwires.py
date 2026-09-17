@@ -22,8 +22,21 @@ def recently_fired(conn, name: str, hours: float) -> bool:
     return conn.execute("SELECT 1 FROM tripwire_log WHERE tripwire = ? AND fired_utc >= ? LIMIT 1", (name, since)).fetchone() is not None
 
 
-def fire(conn, name: str, severity: int, detail: str, url: str | None, index_line: str) -> None:
-    text = f"Strait Watch tripwire: {name} (severity {severity}/5)\n{detail}\n{url or ''}\n{index_line}".strip()
+def summarize(item: dict) -> str:
+    """Two-sentence LLM summary for keyword hits. Empty on any failure so alerts never wait on the LLM."""
+    try:
+        from app.llm import chain
+        text, _ = chain.complete("alert", "Summarize this news item in two plain sentences for an escalation alert. No markdown.",
+                                 f"{item['title']}\n{item['snippet'] or ''}", json_mode=False)
+        return text[:500]
+    except Exception as e:
+        log.warning("alert summary skipped: %r", e)
+        return ""
+
+
+def fire(conn, name: str, severity: int, detail: str, url: str | None, index_line: str, summary: str = "") -> None:
+    text = f"Strait Watch tripwire: {name} (severity {severity}/5)\n{detail}\n{summary}\n{url or ''}\n{index_line}"
+    text = "\n".join(line for line in text.split("\n") if line.strip())
     try:
         telegram.send(text)
         alerted = 1
@@ -51,7 +64,7 @@ def evaluate() -> str:
                 continue
             hit = next((it for it in items if pattern.search(f"{it['title']} {it['snippet'] or ''}")), None)
             if hit:
-                fire(conn, tw["name"], tw["severity"], f"{hit['source']}: {hit['title']}", hit["url"], index_line)
+                fire(conn, tw["name"], tw["severity"], f"{hit['source']}: {hit['title']}", hit["url"], index_line, summarize(hit))
                 fired.append(tw["name"])
 
         for tw in CFG["indicators"]:

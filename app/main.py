@@ -84,7 +84,7 @@ def warnings_ctx(region: str, military: bool) -> dict:
 
 
 def system_ctx() -> dict:
-    return {"failures": data.failures(), "db_size": data.db_size_mb()}
+    return {"failures": data.failures(), "db_size": data.db_size_mb(), "llm": data.llm_usage()}
 
 
 @app.get("/")

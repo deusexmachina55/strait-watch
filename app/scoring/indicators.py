@@ -78,6 +78,16 @@ def series(days: int = 120) -> dict[str, dict[str, float]]:
     for k, c in counts.items():
         out[k] = zero_fill(c, labels, items_first)
 
+    # LLM severity sums per day: physical actions feed military, the rest feeds rhetoric
+    analyzed = rows("SELECT a.severity, a.physical, i.published_utc FROM item_analysis a JOIN items i ON i.id = a.item_id "
+                    "WHERE i.published_utc >= ?", f"{since}T00:00:00+00:00")
+    llm_first = rows("SELECT MIN(analyzed_utc) AS d FROM item_analysis")[0]["d"]
+    physical, rhetoric = defaultdict(int), defaultdict(int)
+    for r in analyzed:
+        (physical if r["physical"] else rhetoric)[local_day(r["published_utc"])] += r["severity"]
+    out["llm_physical"] = zero_fill(physical, labels, local_day(llm_first) if llm_first else None)
+    out["llm_rhetoric"] = zero_fill(rhetoric, labels, local_day(llm_first) if llm_first else None)
+
     # Polymarket: daily last probability (in percent) of the highest-volume market
     top = rows("SELECT market_id FROM market_odds ORDER BY volume DESC LIMIT 1")
     if top:

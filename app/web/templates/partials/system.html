@@ -1,6 +1,7 @@
 <section class="tiles">
   <div class="card tile"><div class="l">Service</div><div class="v {{ 'ok' if status == 'ok' else 'bad' }}">{{ status }}</div><div class="s">uptime {{ uptime_seconds // 3600 }}h {{ (uptime_seconds % 3600) // 60 }}m</div></div>
   <div class="card tile"><div class="l">Database</div><div class="v">{{ db_size }} MB</div><div class="s">data\strait.db (WAL)</div></div>
+  <div class="card tile"><div class="l">LLM calls today</div><div class="v {{ 'bad' if llm.today >= llm.cap else '' }}">{{ llm.today }} / {{ llm.cap }}</div><div class="s">{% for p in llm.providers %}{{ p.provider }} {{ p.ok }} ok{% if p.failed %}, {{ p.failed }} failed{% endif %}{{ '; ' if not loop.last }}{% endfor %}{% if not llm.providers %}none yet{% endif %}. {{ llm.analyzed }} items analyzed</div></div>
   <div class="card tile"><div class="l">Job failures logged</div><div class="v {{ 'bad' if failures else '' }}">{{ failures | length }}</div><div class="s">last 20 shown below</div></div>
 </section>
 <section class="card">

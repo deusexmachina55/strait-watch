@@ -152,13 +152,16 @@ tsm_5d = [0, 4]
 gold_5d = [0, 2.5]
 cnh_5d = [0, 0.6]
 sox_5d = [0, 4]
+# LLM severity sums per day: physical actions and rhetoric (Phase 4)
+llm_physical = [4, 4]
+llm_rhetoric = [6, 5]
 
 # Indicators per sub-score with weights. Negative weight means a lower value raises the score.
 [scoring.subscores]
-military = { pla_aircraft = 1.0, pla_entered = 1.0, pla_navy = 0.7, pla_official = 0.3, msa_military = 0.7, msa_fujian_military = 1.0, gdelt_twn_material = 0.7, japan_sightings = 0.5, cga_incursions = 0.7 }
+military = { pla_aircraft = 1.0, pla_entered = 1.0, pla_navy = 0.7, pla_official = 0.3, msa_military = 0.7, msa_fujian_military = 1.0, gdelt_twn_material = 0.7, japan_sightings = 0.5, cga_incursions = 0.7, llm_physical = 1.0 }
 economic = { tsm_5d = -1.0, sox_5d = -0.5, gold_5d = 1.0, cnh_5d = 1.0, items_economic = 0.5 }
 diplomatic = { gdelt_twn_verbal = 0.8, gdelt_usa_material = 0.6, items_diplomatic = 0.7, polymarket = 1.0, advisory = 1.0 }
-rhetoric = { items_state_media = 1.0, items_military = 0.7 }
+rhetoric = { items_state_media = 1.0, items_military = 0.7, llm_rhetoric = 1.0 }
 
 [tripwires]
 # Composite index thresholds that alert on crossing upward
@@ -238,3 +241,19 @@ sigma = 2.5
 absolute = 15
 severity = 3
 cooldown = 24
+
+[llm]
+# Free-tier chain, tried in order; falls through on rate limit or error. Keys in .env.
+providers = [
+  { name = "gemini", model = "gemini-3.6-flash" },
+  { name = "groq", model = "openai/gpt-oss-120b" },
+  { name = "openrouter", model = "google/gemma-4-31b-it:free" },
+]
+# Hard cap on LLM calls per day (SGT), all purposes combined
+daily_cap = 150
+# Items per analysis call, and how far back to analyze (older relevant items are left unscored)
+batch_size = 30
+max_item_age_days = 14
+# Morning digest time, Asia/Singapore
+digest_hour = 7
+digest_minute = 30
