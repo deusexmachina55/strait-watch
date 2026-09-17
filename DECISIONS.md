@@ -17,6 +17,10 @@ SPEC.md is the spec. This file records decisions made after it was written. Wher
 - Storage: SQLite on local SSD. Never run the live DB off the NAS share. NAS is backup target only, via a dedicated NAS user with write access to one share.
 - Tooling is unrestricted. Claude Code chooses the best language/tool per job within the hard constraints.
 - v1 scope: MND PLA counts, GDELT, RSS feeds, prices. AIS, NOTAMs, shipping insurance and backtesting are v2.
+- Phase 2 source additions (2026-09-17, tested live from the Dell): US State Dept travel advisories, Japan Joint Staff press releases, Taiwan Coast Guard press releases, China MSA navigation warnings (Fujian, Zhejiang, Shanghai, Guangdong, Shandong channels on www.msa.gov.cn), Polymarket China/Taiwan markets.
+- GDELT: raw 15-minute event export files from data.gdeltproject.org, not the DOC API. The API rate-limits the Dell's IP; the files have no limit and allow a 90-day backfill.
+- Reuters, USNI News, Global Times and Xinhua are read through Google News RSS. Reuters has no public feed, USNI blocks scrapers, the other two feeds are stale.
+- Dropped: GDELT Global Frontpage Graph (unmaintained alpha), regional MSA "maritime news" pages (local port news), PLA Eastern Theater Command social media (fragile).
 
 ## Security requirements (apply from Phase 1)
 - .gitignore covers .env, data/, logs/ before any push.

@@ -5,42 +5,209 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Strait Watch</title>
 <style>
-  :root { color-scheme: dark; }
-  body { font-family: system-ui, sans-serif; background: #0f1419; color: #e6e6e6; max-width: 900px; margin: 2rem auto; padding: 0 1rem; }
-  h1 { margin-bottom: .25rem; }
-  .muted { color: #8a949e; }
-  .ok { color: #4caf50; }
-  .bad { color: #f44336; }
-  table { width: 100%; border-collapse: collapse; margin: 1rem 0; }
-  th, td { text-align: left; padding: .5rem; border-bottom: 1px solid #2a323b; }
-  button { padding: .5rem 1rem; background: #2a323b; color: #e6e6e6; border: 1px solid #3d4750; border-radius: 4px; cursor: pointer; }
+  :root {
+    color-scheme: dark;
+    --page: #0d0d0d; --surface: #1a1a19; --border: rgba(255,255,255,.10);
+    --text: #ffffff; --text-2: #c3c2b7; --muted: #898781; --grid: #2c2c2a;
+    --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500; --s5: #d55181;
+    --good: #0ca30c; --warn: #fab219; --crit: #d03b3b;
+  }
+  * { box-sizing: border-box; }
+  body { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; background: var(--page); color: var(--text); margin: 0; padding: 16px; font-size: 14px; }
+  header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 12px 20px; margin-bottom: 16px; }
+  h1 { font-size: 20px; margin: 0; }
+  h2 { font-size: 14px; font-weight: 600; margin: 0 0 8px; color: var(--text-2); }
+  .muted { color: var(--muted); }
+  .ok { color: var(--good); } .bad { color: var(--crit); } .warn { color: var(--warn); }
+  .grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); margin-bottom: 12px; }
+  .tiles { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); margin-bottom: 12px; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 12px; min-width: 0; }
+  .tile .v { font-size: 26px; font-weight: 600; line-height: 1.1; }
+  .tile .l { color: var(--muted); font-size: 12px; margin-bottom: 4px; }
+  .tile .s { color: var(--text-2); font-size: 12px; margin-top: 4px; }
+  .chart { position: relative; height: 200px; }
+  .prices { display: grid; gap: 8px; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
+  .price { padding: 8px; border: 1px solid var(--border); border-radius: 6px; }
+  .price .l { font-size: 12px; color: var(--muted); }
+  .price .p { font-size: 16px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .price .c { font-size: 12px; font-variant-numeric: tabular-nums; }
+  .spark-wrap { position: relative; height: 36px; margin-top: 4px; }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--grid); vertical-align: top; }
+  th { color: var(--muted); font-weight: 500; font-size: 12px; }
+  td { font-variant-numeric: tabular-nums; }
+  .nowrap { white-space: nowrap; }
+  a { color: var(--text); text-decoration: none; } a:hover { text-decoration: underline; }
+  .tag { display: inline-block; font-size: 11px; color: var(--text-2); border: 1px solid var(--border); border-radius: 10px; padding: 0 7px; margin: 1px 2px 1px 0; }
+  .toolbar { display: flex; gap: 10px; align-items: center; margin-bottom: 8px; flex-wrap: wrap; }
+  select, button { font: inherit; background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 4px; padding: 4px 8px; }
+  button { cursor: pointer; }
+  details summary { cursor: pointer; color: var(--muted); }
+  .legend { display: flex; gap: 12px; font-size: 12px; color: var(--text-2); margin-bottom: 4px; flex-wrap: wrap; }
+  .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 4px; vertical-align: -1px; }
 </style>
 </head>
 <body>
-<h1>Strait Watch</h1>
-<p class="muted">{{ time }}. Phase 1 placeholder dashboard.</p>
+<header>
+  <h1>Strait Watch</h1>
+  <span class="muted">{{ time }}</span>
+  <span>Service <strong class="{{ 'ok' if status == 'ok' else 'bad' }}">{{ status }}</strong></span>
+</header>
 
-<p>Status: <strong class="{{ 'ok' if status == 'ok' else 'bad' }}">{{ status }}</strong>
-  <span class="muted">(uptime {{ uptime_seconds }}s)</span></p>
-
-<table>
-  <tr><th>Job</th><th>Last run</th><th>Result</th><th>Message</th></tr>
-  {% for name, job in jobs.items() %}
-  <tr>
-    <td>{{ name }}</td>
-    <td>{{ job.last_run }}</td>
-    <td class="{{ 'ok' if job.ok else 'bad' }}">{{ 'ok' if job.ok else 'failed' }}</td>
-    <td>{{ job.message or '' }}</td>
-  </tr>
-  {% else %}
-  <tr><td colspan="4" class="muted">No job runs yet.</td></tr>
+{% set latest = pla.latest %}
+<section class="tiles">
+  <div class="card tile">
+    <div class="l">PLA aircraft (MND, {{ latest.report_date[5:] if latest else 'no data' }})</div>
+    <div class="v">{{ latest.aircraft if latest else '–' }}</div>
+    <div class="s">{{ latest.aircraft_entered if latest else '–' }} entered airspace{% if latest and latest.median_line_crossed %}, median line crossed{% endif %}</div>
+  </div>
+  <div class="card tile">
+    <div class="l">PLA vessels (MND)</div>
+    <div class="v">{{ latest.navy_ships if latest else '–' }}</div>
+    <div class="s">+ {{ latest.official_ships if latest else '–' }} official ships{% if latest and latest.balloons %}, {{ latest.balloons }} balloons{% endif %}</div>
+  </div>
+  <div class="card tile">
+    <div class="l">MSA military warnings, 7 days</div>
+    <div class="v">{{ msa.last7 }}</div>
+    <div class="s">{{ msa.fujian7 }} in Fujian (Strait)</div>
+  </div>
+  <div class="card tile">
+    <div class="l">GDELT China-Taiwan, today (UTC)</div>
+    <div class="v">{{ gdelt.today.events if gdelt.today else 0 }}</div>
+    <div class="s">{{ gdelt.today.material_conflict if gdelt.today else 0 }} material conflict events</div>
+  </div>
+  {% for a in advisories %}
+  <div class="card tile">
+    <div class="l">US advisory: {{ a.country }}</div>
+    <div class="v {{ 'ok' if a.level == 1 else ('warn' if a.level == 2 else 'bad') }}">Level {{ a.level }}</div>
+    <div class="s">since {{ a.published_utc[:10] }}</div>
+  </div>
   {% endfor %}
-</table>
+</section>
 
-<button id="test-alert">Send Telegram test alert</button>
-<span id="result" class="muted"></span>
+<section class="card" style="margin-bottom:12px">
+  <h2>Prices</h2>
+  <div class="prices">
+    {% for p in prices %}
+    <div class="price">
+      <div class="l">{{ p.label }}</div>
+      <div class="p">{{ '%.2f' % p.price if p.price is not none else '–' }}</div>
+      <div class="c {{ 'ok' if p.change and p.change > 0 else ('bad' if p.change and p.change < 0 else 'muted') }}">
+        {{ '%+.2f%%' % p.change if p.change is not none else '' }} <span class="muted">{{ p.as_of or '' }}</span>
+      </div>
+      <div class="spark-wrap"><canvas class="spark" data-values='{{ p.spark | tojson }}'></canvas></div>
+    </div>
+    {% endfor %}
+  </div>
+</section>
 
+<section class="grid">
+  <div class="card">
+    <h2>PLA aircraft per day (MND, 90 days)</h2>
+    <div class="legend"><span><i style="background:var(--s1)"></i>Detected</span><span><i style="background:var(--s2)"></i>Entered Taiwan airspace</span></div>
+    <div class="chart"><canvas id="c-aircraft"></canvas></div>
+  </div>
+  <div class="card">
+    <h2>PLA vessels per day (MND, 90 days)</h2>
+    <div class="legend"><span><i style="background:var(--s1)"></i>Navy</span><span><i style="background:var(--s3)"></i>Official ships</span></div>
+    <div class="chart"><canvas id="c-ships"></canvas></div>
+  </div>
+  <div class="card">
+    <h2>China MSA military navigation warnings per day (90 days)</h2>
+    <div class="legend">{% for s in msa.series %}<span><i style="background:var(--s{{ loop.index }})"></i>{{ s.region }}</span>{% endfor %}</div>
+    <div class="chart"><canvas id="c-msa"></canvas></div>
+  </div>
+  <div class="card">
+    <h2>GDELT China-Taiwan events per day (90 days)</h2>
+    <div class="legend"><span><i style="background:var(--s1)"></i>All events</span><span><i style="background:var(--s2)"></i>Material conflict</span></div>
+    <div class="chart"><canvas id="c-gdelt"></canvas></div>
+  </div>
+</section>
+
+<section class="grid">
+  <div class="card">
+    <h2>Polymarket</h2>
+    <table>
+      <thead><tr><th>Market</th><th style="text-align:right">Yes</th><th style="text-align:right">Volume</th></tr></thead>
+      <tbody>
+      {% for o in odds %}
+      <tr><td>{{ o.question }}</td><td style="text-align:right">{{ '%.1f%%' % (o.probability * 100) }}</td><td style="text-align:right" class="muted">${{ '{:,.0f}'.format(o.volume) }}</td></tr>
+      {% else %}
+      <tr><td colspan="3" class="muted">No data yet.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="card" style="margin-bottom:12px">
+  <div class="toolbar">
+    <h2 style="margin:0">Latest items</h2>
+    <select name="source" hx-get="/items" hx-target="#items" hx-include="[name=all]">
+      <option value="">All sources</option>
+      {% for s in sources %}<option value="{{ s }}">{{ s }}</option>{% endfor %}
+    </select>
+    <label><input type="checkbox" name="all" value="true" hx-get="/items" hx-target="#items" hx-include="[name=source]"> show non-relevant too</label>
+  </div>
+  <div id="items">{% include "items.html" %}</div>
+</section>
+
+<details class="card">
+  <summary>Jobs and service</summary>
+  <p class="muted">Uptime {{ uptime_seconds }}s</p>
+  <table>
+    <tr><th>Job</th><th>Last run (SGT)</th><th>Result</th><th>Message</th></tr>
+    {% for name, job in jobs.items() %}
+    <tr><td>{{ name }}</td><td class="nowrap">{{ job.last_run }}</td><td class="{{ 'ok' if job.ok else 'bad' }}">{{ 'ok' if job.ok else 'failed' }}</td><td>{{ job.message or '' }}</td></tr>
+    {% endfor %}
+  </table>
+  <p><button id="test-alert">Send Telegram test alert</button> <span id="result" class="muted"></span></p>
+</details>
+
+<script src="/static/htmx.min.js"></script>
+<script src="/static/chart.umd.min.js"></script>
 <script>
+const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const PLA = {{ pla | tojson }}, MSA = {{ msa | tojson }}, GDELT = {{ gdelt | tojson }};
+const short = d => d.slice(5);
+Chart.defaults.color = css('--muted');
+Chart.defaults.borderColor = css('--grid');
+Chart.defaults.font.family = getComputedStyle(document.body).fontFamily;
+const base = {
+  responsive: true, maintainAspectRatio: false, animation: false,
+  interaction: { mode: 'index', intersect: false },
+  plugins: { legend: { display: false }, tooltip: { backgroundColor: css('--surface'), borderColor: css('--border'), borderWidth: 1, titleColor: css('--text'), bodyColor: css('--text-2') } },
+  scales: { x: { grid: { display: false }, ticks: { maxTicksLimit: 8, maxRotation: 0 } }, y: { beginAtZero: true, grid: { color: css('--grid') }, ticks: { maxTicksLimit: 5 } } },
+};
+const bars = (id, labels, datasets, stacked) => new Chart(document.getElementById(id), {
+  type: 'bar',
+  data: { labels: labels.map(short), datasets: datasets.map(d => ({ ...d, borderWidth: 0, borderRadius: 2, borderSkipped: 'start', maxBarThickness: 12 })) },
+  options: { ...base, scales: { x: { ...base.scales.x, stacked }, y: { ...base.scales.y, stacked } } },
+});
+bars('c-aircraft', PLA.labels, [
+  { label: 'Detected', data: PLA.aircraft, backgroundColor: css('--s1') },
+  { label: 'Entered airspace', data: PLA.entered, backgroundColor: css('--s2') },
+], false);
+bars('c-ships', PLA.labels, [
+  { label: 'Navy', data: PLA.navy, backgroundColor: css('--s1') },
+  { label: 'Official', data: PLA.official, backgroundColor: css('--s3') },
+], true);
+bars('c-msa', MSA.labels, MSA.series.map((s, i) => ({ label: s.region, data: s.data, backgroundColor: css('--s' + (i + 1)) })), true);
+new Chart(document.getElementById('c-gdelt'), {
+  type: 'line',
+  data: { labels: GDELT.labels.map(short), datasets: [
+    { label: 'All events', data: GDELT.events, borderColor: css('--s1'), backgroundColor: css('--s1') },
+    { label: 'Material conflict', data: GDELT.material, borderColor: css('--s2'), backgroundColor: css('--s2') },
+  ].map(d => ({ ...d, borderWidth: 2, pointRadius: 0, pointHoverRadius: 4, spanGaps: true })) },
+  options: base,
+});
+document.querySelectorAll('canvas.spark').forEach(c => {
+  const v = JSON.parse(c.dataset.values);
+  if (v.length < 2) return;
+  const up = v[v.length - 1] >= v[0];
+  new Chart(c, { type: 'line', data: { labels: v.map((_, i) => i), datasets: [{ data: v, borderColor: css(up ? '--good' : '--crit'), borderWidth: 1.5, pointRadius: 0 }] },
+    options: { responsive: true, maintainAspectRatio: false, animation: false, plugins: { legend: { display: false }, tooltip: { enabled: false } }, scales: { x: { display: false }, y: { display: false } } } });
+});
 document.getElementById('test-alert').onclick = async () => {
   const result = document.getElementById('result');
   const r = await fetch('/api/test-alert', { method: 'POST', headers: { 'X-Requested-With': 'strait-watch' } });

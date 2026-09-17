@@ -1,15 +1,17 @@
 import logging
 import secrets
 import time
-from contextlib import asynccontextmanager, closing
+from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
+from fastapi.responses import FileResponse
 from fastapi.templating import Jinja2Templates
 
 from app import config, db, scheduler
 from app.alerts import telegram
+from app.web import data
 
 # httpx logs request URLs at INFO, which would include the bot token
 logging.getLogger("httpx").setLevel(logging.WARNING)
@@ -36,6 +38,16 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(lifespan=lifespan, dependencies=[Depends(auth)], docs_url=None, redoc_url=None, openapi_url=None)
+STATIC = config.ROOT / "app" / "web" / "static"
+
+
+# A StaticFiles mount would bypass the app-level auth dependency
+@app.get("/static/{name}")
+def static(name: str):
+    path = STATIC / name
+    if "/" in name or "\\" in name or not path.is_file():
+        raise HTTPException(404)
+    return FileResponse(path)
 
 
 def local_time(dt: datetime) -> str:
@@ -43,23 +55,12 @@ def local_time(dt: datetime) -> str:
 
 
 def status() -> dict:
-    now = datetime.now(timezone.utc)
-    with closing(db.connect()) as conn:
-        rows = conn.execute("SELECT job, last_run_utc, ok, message FROM job_status ORDER BY job").fetchall()
-    jobs = {}
-    for r in rows:
-        last = datetime.fromisoformat(r["last_run_utc"])
-        jobs[r["job"]] = {
-            "last_run": local_time(last),
-            "age_seconds": int((now - last).total_seconds()),
-            "ok": bool(r["ok"]),
-            "message": r["message"],
-        }
+    jobs = data.jobs()
     beat = jobs.get("heartbeat")
     healthy = beat is not None and beat["ok"] and beat["age_seconds"] < HEARTBEAT_STALE_SECONDS
     return {
         "status": "ok" if healthy else "stale",
-        "time": local_time(now),
+        "time": local_time(datetime.now(timezone.utc)),
         "uptime_seconds": int(time.monotonic() - STARTED),
         "jobs": jobs,
     }
@@ -67,7 +68,17 @@ def status() -> dict:
 
 @app.get("/")
 def dashboard(request: Request):
-    return templates.TemplateResponse(request, "dashboard.html", status())
+    ctx = status() | {
+        "pla": data.pla(), "gdelt": data.gdelt(), "msa": data.msa(), "prices": data.prices(),
+        "odds": data.odds(), "advisories": data.advisories(), "sources": data.sources(),
+        "items": data.items(), "source": "", "show_all": False,
+    }
+    return templates.TemplateResponse(request, "dashboard.html", ctx)
+
+
+@app.get("/items")
+def items(request: Request, source: str = "", all: bool = False):
+    return templates.TemplateResponse(request, "items.html", {"items": data.items(source, all)})
 
 
 @app.get("/health")

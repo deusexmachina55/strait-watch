@@ -4,7 +4,23 @@ Personal early-warning dashboard for China/Taiwan/US tension in the Taiwan Strai
 See SPEC.md for scope and DECISIONS.md for locked decisions and security requirements.
 
 ## Current phase
-Phase 1: service skeleton, basic-auth dashboard, SQLite schema, scheduler heartbeat, Telegram test alert.
+Phase 2: collectors and dashboard. Phase 1 (service, basic auth, heartbeat, Telegram test) is done.
+
+## Data sources
+| Source | Job | Schedule | Notes |
+|---|---|---|---|
+| Taiwan MND daily PLA report | `mnd` | hourly 08:05 to 18:05 SGT | aircraft, aircraft entering Taiwan airspace, median line, navy and official ships, balloons. Site keeps 9 days only |
+| GDELT 2.0 event files | `gdelt`, `gdelt_backfill` | 15 min; backfill every 2 min until 90 days done | per-day counts for CHN-TWN, CHN-USA, CHN-JPN, CHN-PHL dyads |
+| RSS and Google News | `rss` | 15 min | feeds in `config.toml` |
+| Prices (yfinance) | `prices` | 5 min in market hours, 15 min otherwise | 5-minute bars kept 30 days, daily closes 2 years |
+| China MSA navigation warnings | `msa` | hourly | Fujian, Zhejiang, Shanghai, Guangdong, Shandong. Military terms flagged. First run backfills 90 days (about 3 min) |
+| Japan Joint Staff releases | `japan_mod` | 3 h | Chinese ship and aircraft movements near Japan |
+| Taiwan Coast Guard releases | `coast_guard` | 3 h | China Coast Guard incursions |
+| US State Dept advisories | `advisories` | 6 h | Taiwan and China levels |
+| Polymarket | `polymarket` | hourly | active China/Taiwan markets, Yes probability |
+
+Keyword groups, feeds, symbols and MSA channels are in `config.toml`. Restart the service after editing it.
+Items are marked relevant when a keyword group matches together with a Taiwan context term (or an exercise name alone). The dashboard shows relevant items by default.
 
 ## Requirements
 - Windows 11, PowerShell 7, winget, administrator rights for setup.
@@ -41,7 +57,7 @@ Python is kept inside the repo (not the per-user install) so the service account
 | Uninstall service, firewall rule and service account (elevated) | `./service.ps1 uninstall` |
 | Logs | `logs\service.log` |
 
-- Dashboard: `http://<dell-ip>:8080/` (basic auth, credentials in `.env`).
+- Dashboard: `http://<dell-ip>:8080/` (basic auth, credentials in `.env`). Chart.js and htmx are served from `app/web/static`, no CDN.
 - Health JSON: `/health`. `status` is `ok` when the heartbeat ran within 180 seconds.
 - Test alert: button on the dashboard, or `POST /api/test-alert` with header `X-Requested-With: strait-watch`.
 - After code or dependency changes, re-run `./setup.ps1`: it syncs dependencies, reapplies ACLs and restarts the service.

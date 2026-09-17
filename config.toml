@@ -1,0 +1,98 @@
+# Strait Watch collector configuration.
+# Restart the service after editing: ./service.ps1 restart (elevated)
+
+[keywords]
+# An item is relevant when it matches a topic group AND a Taiwan context term,
+# or a topic group alone for sources marked context = true.
+# Groups in "always" make an item relevant on their own.
+context = ["Taiwan", "Taipei", "Taiwan Strait", "Kinmen", "Matsu", "Penghu", "Pratas",
+           "台灣", "臺灣", "台湾", "台海", "臺海", "金門", "马祖", "馬祖", "澎湖"]
+always = ["exercise_name"]
+
+[keywords.groups]
+exercise_name = ["Joint Sword", "Strait Thunder", "聯合利劍", "联合利剑", "海峽雷霆", "海峡雷霆"]
+military = ["PLA", "People's Liberation Army", "warship", "destroyer", "aircraft carrier", "Shandong carrier",
+            "Fujian carrier", "median line", "ADIZ", "live-fire", "live fire", "military drill", "military exercise",
+            "war game", "amphibious", "missile", "Eastern Theater", "解放軍", "解放军", "共機", "共艦", "军演", "軍演",
+            "实弹", "實彈", "东部战区", "東部戰區", "中国海軍", "中国軍機", "艦艇", "空母", "無人機"]
+blockade = ["blockade", "quarantine", "embargo", "encircle", "封鎖", "封锁"]
+# China Coast Guard only; Taiwan's own coast guard (海巡) news is mostly domestic
+coast_guard = ["China Coast Guard", "Chinese coast guard", "CCG", "海警"]
+mobilization = ["mobilization", "mobilisation", "reservist", "conscription", "動員", "动员"]
+evacuation = ["evacuation", "evacuate", "travel advisory", "leave Taiwan", "撤僑", "撤侨"]
+diplomatic = ["Taiwan Affairs Office", "reunification", "one-China", "one China", "separatist", "independence",
+              "arms sale", "sanction", "國台辦", "国台办", "统一", "統一", "台独", "台獨"]
+economic = ["TSMC", "semiconductor", "chip export", "export control", "tariff"]
+
+[[rss]]
+name = "Focus Taiwan"
+url = "https://feeds.feedburner.com/rsscna/engnews"
+context = true
+
+[[rss]]
+name = "Taipei Times"
+url = "https://www.taipeitimes.com/xml/index.rss"
+context = true
+
+[[rss]]
+name = "SCMP China"
+url = "https://www.scmp.com/rss/4/feed"
+
+[[rss]]
+name = "Defense News"
+url = "https://www.defensenews.com/arc/outboundfeeds/rss/?outputType=xml"
+
+[[rss]]
+name = "Reuters"
+url = "https://news.google.com/rss/search?q=(Taiwan+OR+China)+site:reuters.com+when:2d&hl=en-US&gl=US&ceid=US:en"
+
+[[rss]]
+name = "USNI News"
+url = "https://news.google.com/rss/search?q=site:news.usni.org+when:2d&hl=en-US&gl=US&ceid=US:en"
+
+[[rss]]
+name = "Global Times"
+url = "https://news.google.com/rss/search?q=Taiwan+site:globaltimes.cn+when:2d&hl=en-US&gl=US&ceid=US:en"
+
+[[rss]]
+name = "Xinhua"
+url = "https://news.google.com/rss/search?q=Taiwan+site:news.cn+when:2d&hl=en-US&gl=US&ceid=US:en"
+
+[prices]
+symbols = ["GC=F", "SI=F", "TSM", "2330.TW", "^SOX", "NVDA", "BTC-USD", "CNH=X", "DX-Y.NYB"]
+labels = ["Gold", "Silver", "TSM (ADR)", "TSMC 2330.TW", "SOX", "NVDA", "BTC", "USD/CNH", "DXY"]
+
+[gdelt]
+# Dyads counted in the GDELT 2.0 event files (actor country codes, order ignored)
+dyads = ["CHN-TWN", "CHN-USA", "CHN-JPN", "CHN-PHL"]
+backfill_days = 90
+
+[msa]
+# China MSA navigation warning channels on www.msa.gov.cn
+backfill_days = 90
+military_terms = ["实弹", "射击", "军事", "演习", "演练", "禁航", "GUN FIRING", "FIRING", "MILITARY", "EXERCISE", "ROCKET", "MISSILE"]
+
+[[msa.channels]]
+region = "Fujian"
+id = "7b08405760384570a0fb44e9204c4b1d"
+
+[[msa.channels]]
+region = "Zhejiang"
+id = "8e10ea74eb9e4c9690f8f891968add80"
+
+[[msa.channels]]
+region = "Shanghai"
+id = "94df14ce1110415da44e67593e76619f"
+
+[[msa.channels]]
+region = "Guangdong"
+id = "1e478d409e854918bf12478b8a19f4a8"
+
+[[msa.channels]]
+region = "Shandong"
+id = "36ea3354c8f84953aba082d6d989c750"
+
+[polymarket]
+search = "china taiwan"
+# Only events whose title matches all of these words (case-insensitive)
+title_must_contain = ["china", "taiwan"]

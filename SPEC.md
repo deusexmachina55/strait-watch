@@ -65,6 +65,7 @@ strait-watch/
 - Prices: GC=F, SI=F, TSM, 2330.TW, ^SOX, NVDA, BTC-USD, CNH=X, DX-Y.NYB. Every 5 min in market hours, 15 min otherwise.
 - Keyword pre-filter before marking articles relevant.
 - Dashboard: latest items table, PLA count chart, price sparklines.
+- Added (see DECISIONS.md): State Dept advisories (6h), Japan Joint Staff releases (3h), Taiwan Coast Guard releases (3h), China MSA navigation warnings with military-term flag (1h, 90-day backfill), Polymarket odds (1h). GDELT via event export files (15 min) with 90-day backfill.
 
 ### Phase 3: Scoring + tripwires
 - Rolling baselines (30d and 90d mean/stddev) per indicator.

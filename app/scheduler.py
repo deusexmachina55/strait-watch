@@ -3,8 +3,11 @@ from contextlib import closing
 from datetime import datetime, timezone
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from apscheduler.triggers.cron import CronTrigger
 
 from app import db
+from app.collectors import advisories, coast_guard, gdelt, japan_mod, msa, mnd, polymarket, prices, rss
+from app.config import LOCAL_TZ
 
 log = logging.getLogger("uvicorn.error")
 scheduler = AsyncIOScheduler(timezone=timezone.utc)
@@ -26,20 +29,19 @@ def record(job: str, ok: bool, message: str | None = None) -> None:
             )
 
 
-def add_job(name: str, fn, **interval) -> None:
+def add_job(name: str, fn, trigger="interval", run_now: bool = True, **trigger_args) -> None:
     def run():
         try:
-            fn()
+            message = fn()
         except Exception as e:
             log.error("job %s failed: %r", name, e)
-            record(name, False, repr(e))
+            record(name, False, repr(e)[:500])
             return
-        record(name, True)
+        record(name, True, message)
 
-    scheduler.add_job(
-        run, "interval", id=name, replace_existing=True, max_instances=1, coalesce=True,
-        next_run_time=datetime.now(timezone.utc), **interval,
-    )
+    extra = {"next_run_time": datetime.now(timezone.utc)} if run_now else {}
+    scheduler.add_job(run, trigger, id=name, replace_existing=True, max_instances=1, coalesce=True,
+                      misfire_grace_time=300, **extra, **trigger_args)
 
 
 def heartbeat() -> None:
@@ -48,4 +50,15 @@ def heartbeat() -> None:
 
 def start() -> None:
     add_job("heartbeat", heartbeat, seconds=60)
+    # MND publishes once a day, usually mid-morning Taiwan time; poll hourly in the window
+    add_job("mnd", mnd.run, CronTrigger(hour="8-18", minute=5, timezone=LOCAL_TZ))
+    add_job("rss", rss.run, minutes=15)
+    add_job("gdelt", gdelt.run, minutes=15)
+    add_job("gdelt_backfill", gdelt.backfill, minutes=2)
+    add_job("prices", prices.run, minutes=5)
+    add_job("msa", msa.run, hours=1)
+    add_job("japan_mod", japan_mod.run, hours=3)
+    add_job("coast_guard", coast_guard.run, hours=3)
+    add_job("advisories", advisories.run, hours=6)
+    add_job("polymarket", polymarket.run, hours=1)
     scheduler.start()

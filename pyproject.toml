@@ -6,11 +6,14 @@ requires-python = ">=3.12,<3.13"
 dependencies = [
     "apscheduler>=3.10,<4",
     "fastapi",
+    "feedparser>=6.0.14",
     "httpx",
     "jinja2",
     "python-dotenv",
+    "selectolax>=0.4.11",
     "tzdata",
     "uvicorn",
+    "yfinance>=1.7.0",
 ]
 
 [tool.uv]
