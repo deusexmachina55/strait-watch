@@ -72,7 +72,8 @@ def msa_warnings(region: str = "", military_only: bool = True, limit: int = 200)
 # Prices
 
 def prices(symbols: list[str], spark_days: int = 30) -> list[dict]:
-    today = date.today()
+    # Daily closes are keyed by UTC date (yfinance), so "today" must be the UTC date too
+    today = datetime.now(timezone.utc).date()
     since = (today - timedelta(days=45)).isoformat()
     daily = rows("SELECT symbol, day, close FROM prices_daily WHERE day >= ? ORDER BY day", since)
     last = {r["symbol"]: r for r in rows("SELECT symbol, MAX(ts_utc) AS ts_utc, close FROM prices_intraday GROUP BY symbol")}
@@ -139,6 +140,31 @@ def tripwires(limit: int = 30) -> list[dict]:
 def odds() -> list[dict]:
     return rows("SELECT question, probability, volume, ts_utc FROM market_odds m WHERE ts_utc = "
                 "(SELECT MAX(ts_utc) FROM market_odds WHERE market_id = m.market_id) ORDER BY volume DESC")
+
+
+def odds_history(days: int = 90) -> dict:
+    """Daily last probability per market, for the Signals chart."""
+    since = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat(timespec="seconds")
+    labels = days_back(days)
+    markets = {}
+    for r in rows("SELECT market_id, question, ts_utc, probability FROM market_odds WHERE ts_utc >= ? ORDER BY ts_utc", since):
+        m = markets.setdefault(r["market_id"], {"question": r["question"], "by_day": {}})
+        m["by_day"][local(r["ts_utc"], "%Y-%m-%d")] = round(r["probability"] * 100, 1)
+    series = []
+    for m in markets.values():
+        last, points = None, []
+        for d in labels:
+            last = m["by_day"].get(d, last)
+            points.append(last)
+        series.append({"question": m["question"], "data": points})
+    return {"labels": labels, "series": series}
+
+
+def advisory_history() -> list[dict]:
+    out = rows("SELECT country, level, published_utc, url, title FROM advisories ORDER BY published_utc DESC LIMIT 50")
+    for r in out:
+        r["when"] = r["published_utc"][:10]
+    return out
 
 
 def advisories() -> list[dict]:

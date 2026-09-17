@@ -1,0 +1,52 @@
+<section class="grid" style="grid-template-columns: 2fr 3fr">
+  <div class="card">
+    <h2>Polymarket, current odds</h2>
+    <table>
+      <thead><tr><th>Market</th><th class="num">Yes</th><th class="num">Volume</th></tr></thead>
+      <tbody>
+      {% for o in odds %}
+      <tr><td>{{ o.question }}</td><td class="num">{{ '%.1f%%' % (o.probability * 100) }}</td><td class="num muted">${{ '{:,.0f}'.format(o.volume) }}</td></tr>
+      {% else %}
+      <tr><td colspan="3" class="muted">No data yet.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div class="card">
+    <h2>Polymarket, probability of Yes (90 days, builds up from install day)</h2>
+    <div class="legend">{% for s in odds_history.series %}<span><i style="background:var(--s{{ loop.index }})"></i>{{ s.question }}</span>{% endfor %}</div>
+    <div class="chart"><canvas id="c-odds"></canvas></div>
+  </div>
+</section>
+
+<section class="grid" style="grid-template-columns: 1fr 2fr">
+  <div class="card">
+    <h2>US State Department travel advisories, current</h2>
+    <table>
+      <tbody>
+      {% for a in advisories %}
+      <tr><td>{{ a.country }}</td><td class="{{ 'ok' if a.level == 1 else ('warn' if a.level == 2 else 'bad') }}">Level {{ a.level }}</td><td class="muted">since {{ a.published_utc[:10] }}</td><td><a href="{{ a.url }}" target="_blank" rel="noopener">source</a></td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    <p class="muted" style="font-size:12px">Level 1 normal precautions, 2 increased caution, 3 reconsider travel, 4 do not travel. A Taiwan level change is an evacuation-type signal.</p>
+  </div>
+  <div class="card">
+    <h2>Advisory history</h2>
+    <table>
+      <thead><tr><th>Date</th><th>Country</th><th>Level</th><th>Title</th></tr></thead>
+      <tbody>
+      {% for a in advisory_history %}
+      <tr><td class="nowrap muted">{{ a.when }}</td><td>{{ a.country }}</td><td class="{{ 'ok' if a.level == 1 else ('warn' if a.level == 2 else 'bad') }}">{{ a.level }}</td><td><a href="{{ a.url }}" target="_blank" rel="noopener">{{ a.title }}</a></td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<script>
+(() => {
+  const H = {{ odds_history | tojson }};
+  line('c-odds', H.labels, H.series.map((s, i) => ({ label: s.question, data: s.data, borderColor: css('--s' + (i + 1)) })), pct);
+})();
+</script>

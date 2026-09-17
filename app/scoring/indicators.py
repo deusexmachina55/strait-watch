@@ -8,6 +8,8 @@ from app.web.data import rows
 STATE_MEDIA = ("Global Times", "Xinhua")
 NEWS_EXCLUDED = ("Japan MOD", "Taiwan Coast Guard")
 PRICE_RETURNS = {"tsm_5d": "TSM", "gold_5d": "GC=F", "cnh_5d": "CNH=X", "sox_5d": "^SOX"}
+# Level-type indicators (complete whenever present), as opposed to per-day event counts
+PARTIAL_DAY_EXEMPT = {"pla_aircraft", "pla_entered", "pla_navy", "pla_official", "polymarket", "advisory", *PRICE_RETURNS}
 
 
 def local_day(iso_utc: str) -> str:
@@ -108,5 +110,15 @@ def series(days: int = 120) -> dict[str, dict[str, float]]:
         for i in range(5, len(closes)):
             if closes[i]["day"] >= since:
                 out[name][closes[i]["day"]] = (closes[i]["close"] / closes[i - 5]["close"] - 1) * 100
+
+    # Count indicators for the current day are partial. Estimate the trailing 24h instead so the
+    # index does not collapse at midnight: yesterday's count scaled by the part of today not yet elapsed, plus today so far.
+    now = datetime.now(LOCAL_TZ)
+    elapsed = (now.hour * 60 + now.minute) / 1440
+    today_s, yesterday_s = labels[-1], labels[-2]
+    for k, s in out.items():
+        if k in PARTIAL_DAY_EXEMPT or yesterday_s not in s:
+            continue
+        s[today_s] = round(s[yesterday_s] * (1 - elapsed) + s.get(today_s, 0), 2)
 
     return {k: v for k, v in out.items() if v}

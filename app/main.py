@@ -79,8 +79,12 @@ def markets_ctx() -> dict:
 
 
 def warnings_ctx(region: str, military: bool) -> dict:
-    return {"warnings": data.msa_warnings(region, military), "notices": data.notices(), "advisories": data.advisories(),
-            "odds": data.odds(), "tripwires": data.tripwires(50)}
+    return {"warnings": data.msa_warnings(region, military), "notices": data.notices(), "tripwires": data.tripwires(50)}
+
+
+def signals_ctx() -> dict:
+    return {"odds": data.odds(), "odds_history": data.odds_history(), "advisories": data.advisories(),
+            "advisory_history": data.advisory_history()}
 
 
 def system_ctx() -> dict:
@@ -125,6 +129,16 @@ def warnings(request: Request):
 @app.get("/partials/warnings")
 def warnings_partial(request: Request, region: str = "", military: bool = False):
     return render(request, "partials/warnings.html", "Warnings", **warnings_ctx(region, military))
+
+
+@app.get("/signals")
+def signals(request: Request):
+    return render(request, "signals.html", "Signals", **signals_ctx())
+
+
+@app.get("/partials/signals")
+def signals_partial(request: Request):
+    return render(request, "partials/signals.html", "Signals", **signals_ctx())
 
 
 @app.get("/system")

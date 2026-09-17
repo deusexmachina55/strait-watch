@@ -28,29 +28,6 @@
         </tbody>
       </table>
     </div>
-    <div class="card">
-      <h2>US State Department travel advisories</h2>
-      <table>
-        <tbody>
-        {% for a in advisories %}
-        <tr><td>{{ a.country }}</td><td class="{{ 'ok' if a.level == 1 else ('warn' if a.level == 2 else 'bad') }}">Level {{ a.level }}</td><td class="muted">since {{ a.published_utc[:10] }}</td><td><a href="{{ a.url }}" target="_blank" rel="noopener">source</a></td></tr>
-        {% endfor %}
-        </tbody>
-      </table>
-    </div>
-    <div class="card">
-      <h2>Polymarket</h2>
-      <table>
-        <thead><tr><th>Market</th><th class="num">Yes</th><th class="num">Volume</th></tr></thead>
-        <tbody>
-        {% for o in odds %}
-        <tr><td>{{ o.question }}</td><td class="num">{{ '%.1f%%' % (o.probability * 100) }}</td><td class="num muted">${{ '{:,.0f}'.format(o.volume) }}</td></tr>
-        {% else %}
-        <tr><td colspan="3" class="muted">No data yet.</td></tr>
-        {% endfor %}
-        </tbody>
-      </table>
-    </div>
   </div>
 </section>
 

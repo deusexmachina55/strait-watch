@@ -104,7 +104,7 @@ const sparks = root => root.querySelectorAll('canvas.spark').forEach(c => {
 <header>
   <h1><a href="/">Strait Watch</a></h1>
   <nav>
-    {% for href, name in [('/', 'Overview'), ('/news', 'News'), ('/markets', 'Markets'), ('/warnings', 'Warnings'), ('/system', 'System')] %}
+    {% for href, name in [('/', 'Overview'), ('/news', 'News'), ('/markets', 'Markets'), ('/warnings', 'Warnings'), ('/signals', 'Signals'), ('/system', 'System')] %}
     <a href="{{ href }}" class="{{ 'active' if page == name else '' }}">{{ name }}</a>
     {% endfor %}
   </nav>

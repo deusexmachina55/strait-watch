@@ -1,0 +1,7 @@
+{% extends "base.html" %}
+{% block content %}
+<p class="muted" style="margin:0 0 12px">Prediction markets and official advisories. Polymarket is polled hourly, State Department feeds every 6 hours. Page updates every 5 minutes.</p>
+<div id="signals" class="refresh" hx-get="/partials/signals" hx-trigger="every 300s" hx-swap="innerHTML">
+  {% include "partials/signals.html" %}
+</div>
+{% endblock %}

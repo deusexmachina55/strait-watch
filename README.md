@@ -20,13 +20,15 @@ Phase 4: LLM layer. Phases 1 (service), 2 (collectors, pages) and 3 (scoring, tr
 | `/` Overview | Tension index and sub-scores, key tiles, key prices, PLA/MSA/GDELT charts, recent tripwires and items | 60 s |
 | `/news` | All items with source filter, title search, relevance toggle | 60 s |
 | `/markets` | Instrument groups from `config.toml` (`[[prices.groups]]`): last price, 1d/5d/30d change, 30-day sparkline, 90-day comparison chart per group | 60 s |
-| `/warnings` | China MSA navigation warnings (region filter, military only), Japan Joint Staff and Coast Guard notices, US advisories, Polymarket, full tripwire log | 5 min |
+| `/warnings` | China MSA navigation warnings (region filter, military only), Japan Joint Staff and Coast Guard notices, full tripwire log | 5 min |
+| `/signals` | Polymarket odds with 90-day probability chart, US State Department advisories with history | 5 min |
 | `/system` | Service status, DB size, job table, recent failures, Telegram test button | 30 s |
 
 Refresh is done by htmx polling the `/partials/*` endpoints and swapping the page section, no full reload. Prices are only as fresh as the `prices` job (5 minutes in market hours).
 
 ## Index and tripwires
 - The `scoring` job runs every 10 minutes. It builds daily indicator series (PLA counts, MSA military warnings, GDELT conflict events, Japan and Coast Guard sightings, tagged item counts, Polymarket odds, State Dept level, 5-day returns for TSM, SOX, gold and CNH), compares each day with its trailing 30-day and 90-day baseline, and writes sub-scores (military, economic, diplomatic, rhetoric) and a composite 0-100 index per day to the `scores` table. 50 means "at baseline", each standard deviation adds 15 points.
+- Per-day event counts (MSA, GDELT, notices, tagged items, LLM severity) are partial for the current day, so today's value is estimated as the trailing 24 hours: yesterday's count scaled by the part of the day not yet elapsed, plus today so far. This keeps the index continuous across midnight.
 - While an indicator has little history, a prior (typical 2024-2025 values in `config.toml`) stands in for the baseline and fades out over 14 days. MND history starts from install day, so PLA baselines are rough for the first month.
 - Tripwires (`config.toml` `[tripwires]`): keyword hits on relevant items from the last 48 hours (named exercise, blockade, live-fire, no-fly zone, evacuation, mobilization), indicator spikes (PLA aircraft or navy above 2 sigma or an absolute floor, any Fujian military navigation warning, Polymarket jump), PLA spike during a named exercise, and composite index crossing 60, 75 and 90. Each has a cooldown in hours. A hit sends a Telegram message and is written to `tripwire_log`, shown on the dashboard.
 - Weights, priors, thresholds and cooldowns are all in `config.toml`. Restart the service after editing.

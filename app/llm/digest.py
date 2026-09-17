@@ -37,7 +37,8 @@ def build() -> str:
     lines.append("")
     lines.append("Top items:")
     for t in top:
-        lines.append(f"- [{t['severity']}] {t['title_en'] or t['title']} ({t['source']})")
+        en = f" ({t['title_en']})" if t["title_en"] else ""
+        lines.append(f"- [{t['severity']}] {t['title']}{en} ({t['source']})")
     if not top:
         lines.append("- none analyzed yet")
     lines.append("")
