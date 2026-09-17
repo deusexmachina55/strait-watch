@@ -256,14 +256,22 @@ def risk_premium(days: int = 60, window: int = 20) -> dict:
     return {"labels": labels[-days:], "data": out[-days:]}
 
 
-def briefs(limit: int = 12) -> list[dict]:
-    out = rows("SELECT b.*, s.actual_direction, s.delta, s.hit FROM briefs b LEFT JOIN outlook_scores s ON s.brief_id = b.id "
-               "ORDER BY b.created_utc DESC LIMIT ?", limit)
+def briefs(kind: str = "", limit: int = 40) -> list[dict]:
+    sql = "SELECT b.*, s.actual_direction, s.delta, s.hit FROM briefs b LEFT JOIN outlook_scores s ON s.brief_id = b.id"
+    params = []
+    if kind in ("daily", "weekly", "monthly"):
+        sql += " WHERE b.kind = ?"
+        params.append(kind)
+    out = rows(sql + " ORDER BY b.created_utc DESC LIMIT ?", *params, limit)
+    seen = set()
     for b in out:
         b["when"] = local(b["created_utc"], "%d %b %H:%M")
         b["watch"] = json.loads(b["watch"] or "[]")
         b["triggers"] = json.loads(b["outlook_triggers"] or "[]")
         b["grade"] = {"actual_direction": b["actual_direction"], "delta": b["delta"], "hit": b["hit"]} if b["actual_direction"] else None
+        # The newest brief of each kind is shown open, older ones collapsed
+        b["open"] = b["kind"] not in seen
+        seen.add(b["kind"])
     return out
 
 

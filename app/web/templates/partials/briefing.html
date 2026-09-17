@@ -37,27 +37,40 @@
   </div>
 </section>
 
-{% for b in briefs %}
 <section class="card">
-  <h2>{{ b.kind | capitalize }} brief, {{ b.period_start }}{% if b.period_end != b.period_start %} to {{ b.period_end }}{% endif %}
-    <span class="muted" style="font-weight:400">written {{ b.when }} by {{ b.provider or 'rule-based' }}{% if b.index_at is not none %}, index {{ b.index_at }}{% endif %}</span></h2>
-  <div style="white-space:pre-wrap; line-height:1.5">{{ b.summary }}</div>
-  {% if b.watch %}
-  <p style="margin-bottom:4px"><b>Watch</b></p>
-  <ul style="margin-top:0">{% for w in b.watch %}<li>{{ w }}</li>{% endfor %}</ul>
-  {% endif %}
-  {% if b.outlook_direction %}
-  <p><b>Outlook, 14 days (not a forecast):</b>
-    <span class="{{ 'bad' if b.outlook_direction == 'up' else ('ok' if b.outlook_direction == 'down' else 'muted') }}">{{ b.outlook_direction }}</span>, {{ b.outlook_confidence }} confidence.
-    {{ b.outlook_rationale }}
-    {% if b.triggers %}<br><span class="muted">Would change on: {{ b.triggers | join('; ') }}</span>{% endif %}
-    {% if b.grade %}<br><span class="{{ 'ok' if b.grade.hit else 'bad' }}">Graded: index went {{ b.grade.actual_direction }} ({{ '%+.1f' % b.grade.delta }}), {{ 'hit' if b.grade.hit else 'miss' }}.</span>{% endif %}
-  </p>
-  {% endif %}
+  <div class="toolbar">
+    <h2 style="margin:0">Briefs</h2>
+    <select id="kind" name="kind" hx-get="/partials/briefing" hx-target="#briefing" hx-swap="innerHTML">
+      {% for k, label in [('', 'All'), ('weekly', 'Weekly'), ('monthly', 'Monthly'), ('daily', 'Daily')] %}<option value="{{ k }}" {{ 'selected' if kind == k }}>{{ label }}</option>{% endfor %}
+    </select>
+    <span class="muted">Newest of each kind shown open; click an older one to expand. Last 40 kept on the page, all are in the database.</span>
+  </div>
+  {% for b in briefs %}
+  <details {{ 'open' if b.open }} style="border-top:1px solid var(--grid); padding:8px 0">
+    <summary style="cursor:pointer">
+      <b>{{ b.kind | capitalize }}</b> {{ b.period_start }}{% if b.period_end != b.period_start %} to {{ b.period_end }}{% endif %}
+      <span class="muted">written {{ b.when }} by {{ b.provider or 'rule-based' }}{% if b.index_at is not none %}, index {{ b.index_at }}{% endif %}</span>
+      {% if b.outlook_direction %}<span class="{{ 'bad' if b.outlook_direction == 'up' else ('ok' if b.outlook_direction == 'down' else 'muted') }}">outlook {{ b.outlook_direction }}</span>{% endif %}
+      {% if b.grade %}<span class="{{ 'ok' if b.grade.hit else 'bad' }}">{{ 'hit' if b.grade.hit else 'miss' }}</span>{% endif %}
+    </summary>
+    <div style="white-space:pre-wrap; line-height:1.5; margin-top:8px">{{ b.summary }}</div>
+    {% if b.watch %}
+    <p style="margin-bottom:4px"><b>Watch</b></p>
+    <ul style="margin-top:0">{% for w in b.watch %}<li>{{ w }}</li>{% endfor %}</ul>
+    {% endif %}
+    {% if b.outlook_direction %}
+    <p><b>Outlook, 14 days (not a forecast):</b>
+      <span class="{{ 'bad' if b.outlook_direction == 'up' else ('ok' if b.outlook_direction == 'down' else 'muted') }}">{{ b.outlook_direction }}</span>, {{ b.outlook_confidence }} confidence.
+      {{ b.outlook_rationale }}
+      {% if b.triggers %}<br><span class="muted">Would change on: {{ b.triggers | join('; ') }}</span>{% endif %}
+      {% if b.grade %}<br><span class="{{ 'ok' if b.grade.hit else 'bad' }}">Graded: index went {{ b.grade.actual_direction }} ({{ '%+.1f' % b.grade.delta }}), {{ 'hit' if b.grade.hit else 'miss' }}.</span>{% endif %}
+    </p>
+    {% endif %}
+  </details>
+  {% else %}
+  <p class="muted">No briefs yet. The daily digest at 07:30 SGT creates the first one; use Weekly now for an immediate brief.</p>
+  {% endfor %}
 </section>
-{% else %}
-<section class="card"><p class="muted">No briefs yet. The daily digest at 07:30 SGT creates the first one; use Weekly now for an immediate brief.</p></section>
-{% endfor %}
 
 <script>
 (() => {

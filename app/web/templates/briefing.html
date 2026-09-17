@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% block content %}
-<div id="briefing" class="refresh" hx-get="/partials/briefing" hx-trigger="every 300s" hx-swap="innerHTML">
+<div id="briefing" class="refresh" hx-get="/partials/briefing" hx-trigger="every 300s" hx-swap="innerHTML" hx-include="#kind">
   {% include "partials/briefing.html" %}
 </div>
 {% endblock %}

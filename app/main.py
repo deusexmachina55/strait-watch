@@ -211,18 +211,18 @@ def backup_restore(request: Request, snapshot: str = Form(""), path: str = Form(
         return f"Failed: {e}"
 
 
-def briefing_ctx() -> dict:
-    return {"mech": data.mechanical(), "premium": data.risk_premium(), "briefs": data.briefs(), "scorecard": data.scorecard()}
+def briefing_ctx(kind: str = "") -> dict:
+    return {"mech": data.mechanical(), "premium": data.risk_premium(), "briefs": data.briefs(kind), "scorecard": data.scorecard(), "kind": kind}
 
 
 @app.get("/briefing")
-def briefing(request: Request):
-    return render(request, "briefing.html", "Briefing", **briefing_ctx())
+def briefing(request: Request, kind: str = ""):
+    return render(request, "briefing.html", "Briefing", **briefing_ctx(kind))
 
 
 @app.get("/partials/briefing")
-def briefing_partial(request: Request):
-    return render(request, "partials/briefing.html", "Briefing", **briefing_ctx())
+def briefing_partial(request: Request, kind: str = ""):
+    return render(request, "partials/briefing.html", "Briefing", **briefing_ctx(kind))
 
 
 @app.post("/briefing/generate", response_class=PlainTextResponse)
