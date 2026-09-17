@@ -27,11 +27,10 @@ Items are marked relevant when a keyword group matches together with a Taiwan co
 - A Telegram bot token (from @BotFather).
 
 ## Setup
-Run from an elevated PowerShell 7 prompt:
+Run from an elevated prompt (Windows PowerShell 5.1 blocks scripts, so call pwsh explicitly):
 
 ```powershell
-cd C:\claudespace\strait-watch
-./setup.ps1
+pwsh -NoProfile -ExecutionPolicy Bypass -File C:\claudespace\strait-watch\setup.ps1
 ```
 
 Optional parameters: `-InterfaceAlias 'Ethernet' -LanSubnet '192.168.0.0/24' -Port 8080`.
@@ -52,9 +51,9 @@ Python is kept inside the repo (not the per-user install) so the service account
 ## Operating
 | Task | Command |
 |---|---|
-| Status | `./service.ps1 status` |
-| Start / stop / restart (elevated) | `./service.ps1 restart` |
-| Uninstall service, firewall rule and service account (elevated) | `./service.ps1 uninstall` |
+| Status | `pwsh -ExecutionPolicy Bypass -File service.ps1 status` |
+| Start / stop / restart (elevated) | `pwsh -ExecutionPolicy Bypass -File service.ps1 restart` |
+| Uninstall service, firewall rule and service account (elevated) | `pwsh -ExecutionPolicy Bypass -File service.ps1 uninstall` |
 | Logs | `logs\service.log` |
 
 - Dashboard: `http://<dell-ip>:8080/` (basic auth, credentials in `.env`). Chart.js and htmx are served from `app/web/static`, no CDN.

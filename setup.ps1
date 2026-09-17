@@ -183,7 +183,7 @@ if (-not (Test-Service)) {
     if ((Get-CimInstance Win32_Service -Filter "Name='$ServiceName'").PathName.Trim('"') -ne $nssm) {
         Invoke-Step 'Point service at NSSM in Program Files' "sc.exe config $ServiceName binPath= '`"$nssm`"'"
     }
-    Invoke-Step 'Restart service' "Restart-Service $ServiceName"
+    Invoke-Step 'Restart service' "Restart-Service $ServiceName -Force"
 }
 Remove-Variable pwPlain, pw -ErrorAction SilentlyContinue
 

@@ -26,9 +26,12 @@ if ($Action -eq 'status') {
 $isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
 if (-not $isAdmin) { throw "'$Action' needs an elevated PowerShell." }
 
+# Use the Windows service manager for start/stop; nssm's own commands can hang waiting for the app
 if ($Action -ne 'uninstall') {
-    Write-Host "& '$nssm' $Action $ServiceName" -ForegroundColor Yellow
-    & $nssm $Action $ServiceName
+    $cmd = "{0}-Service $ServiceName" -f (Get-Culture).TextInfo.ToTitleCase($Action)
+    Write-Host $cmd -ForegroundColor Yellow
+    & ([scriptblock]::Create($cmd))
+    Get-Service $ServiceName | Select-Object Status
     exit
 }
 
