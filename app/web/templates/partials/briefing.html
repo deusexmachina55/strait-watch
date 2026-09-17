@@ -29,7 +29,7 @@
   </div>
   <div class="card">
     <h2>Generate</h2>
-    <p class="muted" style="font-size:12px">Weekly briefs run Mondays 08:00 SGT for the previous 7 days, monthly on the 1st for the previous 30. Each one goes to Telegram. Generate now covers the trailing period and counts against the LLM cap.</p>
+    <p class="muted" style="font-size:12px">Weekly briefs run Mondays 08:00 {{ tz_label }} for the previous 7 days, monthly on the 1st for the previous 30. Each one goes to Telegram. Generate now covers the trailing period and counts against the LLM cap.</p>
     <p><button hx-post="/briefing/generate" hx-vals='{"kind": "weekly"}' hx-target="#gen-result" hx-swap="innerHTML">Weekly now</button>
        <button hx-post="/briefing/generate" hx-vals='{"kind": "monthly"}' hx-target="#gen-result" hx-swap="innerHTML">Monthly now</button>
        <span id="gen-result" class="muted"></span></p>
@@ -68,7 +68,7 @@
     {% endif %}
   </details>
   {% else %}
-  <p class="muted">No briefs yet. The daily digest at 07:30 SGT creates the first one; use Weekly now for an immediate brief.</p>
+  <p class="muted">No briefs yet. The daily digest at 07:30 {{ tz_label }} creates the first one; use Weekly now for an immediate brief.</p>
   {% endfor %}
 </section>
 

@@ -24,6 +24,7 @@ SPEC.md is the spec. This file records decisions made after it was written. Wher
 - Watchdog (Phase 5 part) shipped with the map: Telegram alert when a job has no success within its allowed age, 12-hour cooldown.
 - Phase 5 backup (2026-09-18): destination, schedule and retention are set in the browser and stored in the database (service cannot write config.toml); restore runs in place via SQLite online backup with a safety copy first. NAS credentials go in .env.
 - Phase 6 briefing (2026-09-18): weekly and monthly LLM briefs from pre-aggregated facts only, same free chain, with a 14-day outlook graded against the index afterwards. Labeled outlook, not forecast. No paid model. Metaculus rejected (needs an account token).
+- Settings (2026-09-18): per-install secrets (login, Telegram, LLM keys, aisstream, NAS credentials, timezone) live in the database and are managed on the Settings page so the app can be installed by someone else without editing files. Password stored as PBKDF2 hash. `.env` is imported once for existing installs, then redundant. Chat ID detection still uses getUpdates server side, never a browser URL.
 - Dropped: GDELT Global Frontpage Graph (unmaintained alpha), regional MSA "maritime news" pages (local port news), PLA Eastern Theater Command social media (fragile).
 
 ## Security requirements (apply from Phase 1)

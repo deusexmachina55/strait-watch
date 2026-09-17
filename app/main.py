@@ -10,7 +10,7 @@ from fastapi.responses import FileResponse
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from fastapi.templating import Jinja2Templates
 
-from app import backup, config, db, scheduler
+from app import backup, config, db, scheduler, settings
 from app.llm import briefs as briefs_mod
 from app.alerts import telegram
 from app.web import data
@@ -23,6 +23,7 @@ HEARTBEAT_STALE_SECONDS = 180
 basic = HTTPBasic()
 templates = Jinja2Templates(directory=config.ROOT / "app" / "web" / "templates")
 templates.env.globals["fmt_price"] = data.fmt_price
+templates.env.globals["tz_label"] = config.TZ_LABEL
 STATIC = config.ROOT / "app" / "web" / "static"
 GROUPS = config.SETTINGS["prices"]["groups"]
 OVERVIEW_SYMBOLS = config.SETTINGS["prices"]["overview"]
@@ -30,8 +31,8 @@ MSA_REGIONS = [c["region"] for c in config.SETTINGS["msa"]["channels"]]
 
 
 def auth(credentials: HTTPBasicCredentials = Depends(basic)) -> None:
-    user_ok = secrets.compare_digest(credentials.username.encode(), config.BASIC_AUTH_USER.encode())
-    pass_ok = secrets.compare_digest(credentials.password.encode(), config.BASIC_AUTH_PASS.encode())
+    user_ok = secrets.compare_digest(credentials.username.encode(), settings.get("admin_user").encode())
+    pass_ok = settings.verify_password(credentials.password, settings.get("admin_pass_hash"))
     if not (user_ok and pass_ok):
         raise HTTPException(401, headers={"WWW-Authenticate": "Basic"})
 
@@ -39,6 +40,11 @@ def auth(credentials: HTTPBasicCredentials = Depends(basic)) -> None:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     db.init()
+    imported = settings.import_env_once()
+    if imported:
+        logging.getLogger("uvicorn.error").info("settings imported from .env: %s", ", ".join(imported))
+    if settings.ensure_admin():
+        logging.getLogger("uvicorn.error").warning("no admin password was set; a generated one is in %s", settings.INITIAL_PASSWORD_FILE)
     scheduler.start()
     yield
     scheduler.scheduler.shutdown(wait=False)
@@ -48,7 +54,7 @@ app = FastAPI(lifespan=lifespan, dependencies=[Depends(auth)], docs_url=None, re
 
 
 def local_time(dt: datetime) -> str:
-    return dt.astimezone(config.LOCAL_TZ).strftime("%Y-%m-%d %H:%M:%S SGT")
+    return dt.astimezone(config.LOCAL_TZ).strftime("%Y-%m-%d %H:%M:%S ") + config.TZ_LABEL
 
 
 def status() -> dict:
@@ -91,7 +97,7 @@ def signals_ctx() -> dict:
 
 def system_ctx() -> dict:
     return {"failures": data.failures(), "db_size": data.db_size_mb(), "llm": data.llm_usage(),
-            "last_backup": next((b for b in data.backups() if b["ok"]), None)}
+            "last_backup": next((b for b in data.backups() if b["ok"]), None), "st": settings.status()}
 
 
 @app.get("/")
@@ -234,6 +240,130 @@ def briefing_generate(request: Request, kind: str = Form("weekly")):
         return "Done: " + briefs_mod.generate(kind) + ". Reload to read it."
     except Exception as e:
         return f"Failed: {e}"
+
+
+# Settings
+
+@app.get("/settings")
+def settings_page(request: Request):
+    s = settings.get_all()
+    return render(request, "settings.html", "Settings", s=s, m={k: settings.masked(v) for k, v in s.items()}, st=settings.status())
+
+
+def keep_or_new(form_value: str, key: str) -> str:
+    return form_value.strip() if form_value and form_value.strip() else settings.get(key)
+
+
+@app.post("/settings/password", response_class=PlainTextResponse)
+def settings_password(request: Request, admin_user: str = Form("admin"), current: str = Form(""), new: str = Form(""), confirm: str = Form("")):
+    htmx_only(request)
+    if not settings.verify_password(current, settings.get("admin_pass_hash")):
+        return "Current password is wrong."
+    if len(new) < 16:
+        return "New password must be at least 16 characters."
+    if new != confirm:
+        return "New password and confirmation differ."
+    if not admin_user.strip():
+        return "Username cannot be empty."
+    settings.set_values({"admin_user": admin_user, "admin_pass_hash": settings.hash_password(new)})
+    settings.INITIAL_PASSWORD_FILE.unlink(missing_ok=True)
+    return "Changed. Reload and log in with the new password."
+
+
+@app.post("/settings/telegram", response_class=PlainTextResponse)
+def settings_telegram(request: Request, telegram_bot_token: str = Form("")):
+    htmx_only(request)
+    token = keep_or_new(telegram_bot_token, "telegram_bot_token")
+    if not token:
+        return "No token given."
+    try:
+        me = telegram.get_me(token)
+    except Exception as e:
+        return f"Token rejected: {e}"
+    settings.set_values({"telegram_bot_token": token})
+    chat = settings.get("telegram_chat_id")
+    return f"Saved. Bot @{me.get('username')} works. " + (f"Chat {chat} set." if chat else "Now message the bot, then press Detect chat.")
+
+
+@app.post("/settings/telegram/detect", response_class=PlainTextResponse)
+def settings_telegram_detect(request: Request):
+    htmx_only(request)
+    token = settings.get("telegram_bot_token")
+    if not token:
+        return "Save a bot token first."
+    try:
+        chat = telegram.detect_chat(token)
+    except Exception as e:
+        return f"Failed: {e}"
+    if not chat:
+        return "No message found. Send any message to the bot in Telegram, then press Detect chat again."
+    settings.set_values({"telegram_chat_id": str(chat["id"])})
+    name = chat.get("username") or chat.get("title") or chat.get("first_name") or ""
+    return f"Chat {chat['id']} ({name}) saved. Alerts are on."
+
+
+@app.post("/settings/telegram/send", response_class=PlainTextResponse)
+def settings_telegram_send(request: Request):
+    htmx_only(request)
+    try:
+        telegram.send(f"Strait Watch test message, {local_time(datetime.now(timezone.utc))}")
+        return "Sent."
+    except Exception as e:
+        return f"Failed: {e}"
+
+
+@app.post("/settings/llm", response_class=PlainTextResponse)
+def settings_llm(request: Request, groq_api_key: str = Form(""), gemini_api_key: str = Form(""), openrouter_api_key: str = Form("")):
+    htmx_only(request)
+    from app.llm import chain
+    values = {"groq_api_key": keep_or_new(groq_api_key, "groq_api_key"), "gemini_api_key": keep_or_new(gemini_api_key, "gemini_api_key"),
+              "openrouter_api_key": keep_or_new(openrouter_api_key, "openrouter_api_key")}
+    settings.set_values(values)
+    results = []
+    for name in ("gemini", "groq", "openrouter"):
+        if not values[f"{name}_api_key"]:
+            results.append(f"{name}: not set")
+            continue
+        try:
+            chain.probe(name)
+            results.append(f"{name}: OK")
+        except Exception as e:
+            results.append(f"{name}: failed ({str(e)[:80]})")
+    return "Saved. " + "; ".join(results)
+
+
+@app.post("/settings/ais", response_class=PlainTextResponse)
+def settings_ais(request: Request, aisstream_api_key: str = Form("")):
+    htmx_only(request)
+    from app.collectors import ais
+    key = keep_or_new(aisstream_api_key, "aisstream_api_key")
+    if not key:
+        return "No key given."
+    try:
+        n = ais.probe(key)
+    except Exception as e:
+        return f"Key rejected: {e}"
+    settings.set_values({"aisstream_api_key": key})
+    return f"Saved. Stream works ({n} messages in 10 s). Ship layer starts within 5 minutes."
+
+
+@app.post("/settings/smb", response_class=PlainTextResponse)
+def settings_smb(request: Request, backup_smb_user: str = Form(""), backup_smb_pass: str = Form("")):
+    htmx_only(request)
+    settings.set_values({"backup_smb_user": backup_smb_user, "backup_smb_pass": keep_or_new(backup_smb_pass, "backup_smb_pass")})
+    return "Saved."
+
+
+@app.post("/settings/timezone", response_class=PlainTextResponse)
+def settings_timezone(request: Request, timezone_name: str = Form("", alias="timezone")):
+    htmx_only(request)
+    from zoneinfo import ZoneInfo
+    try:
+        ZoneInfo(timezone_name.strip())
+    except Exception:
+        return "Unknown timezone name."
+    settings.set_values({"timezone": timezone_name.strip()})
+    return "Saved. Restart the service to apply."
 
 
 @app.get("/system")

@@ -3,12 +3,13 @@
   <div class="card tile"><div class="l">Database</div><div class="v">{{ db_size }} MB</div><div class="s">data\strait.db (WAL)</div></div>
   <div class="card tile"><div class="l">LLM calls today</div><div class="v {{ 'bad' if llm.today >= llm.cap else '' }}">{{ llm.today }} / {{ llm.cap }}</div><div class="s">{% for p in llm.providers %}{{ p.provider }} {{ p.ok }} ok{% if p.failed %}, {{ p.failed }} failed{% endif %}{{ '; ' if not loop.last }}{% endfor %}{% if not llm.providers %}none yet{% endif %}. {{ llm.analyzed }} items analyzed</div></div>
   <div class="card tile"><div class="l">Last backup <a class="muted" href="/backup">(settings)</a></div><div class="v {{ 'ok' if last_backup else 'warn' }}">{{ last_backup.when[5:] if last_backup else 'none' }}</div><div class="s">{{ last_backup.message[:60] if last_backup else 'set a destination on the Backup page' }}</div></div>
+  <div class="card tile"><div class="l">Integrations <a class="muted" href="/settings">(settings)</a></div><div class="v {{ 'ok' if st.alerts and st.llm else 'warn' }}">{{ (1 if st.alerts else 0) + (st.llm | length) + (1 if st.ships else 0) }}</div><div class="s">alerts {{ 'on' if st.alerts else 'off' }}, LLM {{ st.llm | join('/') if st.llm else 'none' }}, ships {{ 'on' if st.ships else 'off' }}</div></div>
   <div class="card tile"><div class="l">Job failures logged</div><div class="v {{ 'bad' if failures else '' }}">{{ failures | length }}</div><div class="s">last 20 shown below</div></div>
 </section>
 <section class="card">
   <h2>Jobs</h2>
   <table>
-    <thead><tr><th>Job</th><th>Last run (SGT)</th><th>Age</th><th>Result</th><th>Message</th></tr></thead>
+    <thead><tr><th>Job</th><th>Last run ({{ tz_label }})</th><th>Age</th><th>Result</th><th>Message</th></tr></thead>
     <tbody>
     {% for name, job in jobs.items() %}
     <tr>

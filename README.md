@@ -76,7 +76,13 @@ Items are marked relevant when a keyword group matches together with a Taiwan co
 
 ## Requirements
 - Windows 11, PowerShell 7, winget, administrator rights for setup.
-- A Telegram bot token (from @BotFather).
+- Nothing else up front. Telegram, LLM and AIS keys are entered on the Settings page after install; the app runs without them (dashboard, index and tripwire log work; alerts, translations, briefs and the ship layer switch on as keys are added).
+
+## Settings page
+- `/settings`: login (username and password, hashed in the database), Telegram (bot token with a live check, chat detection after you message the bot, test message), LLM keys for Groq, Gemini and OpenRouter (each tested on save, one is enough), aisstream key (10-second stream test), NAS share credentials, display timezone. Each card has the sign-up link and steps.
+- Secrets live in the `settings` table of the local database, not in files. An existing `.env` is imported once on first start (legacy installs), after which the database wins and `.env` can be deleted.
+- Fresh install: the first start generates a random admin password and writes it to `data\initial-password.txt`; `setup.ps1` prints it. Change it on the Settings page, which deletes the file.
+- Status of every integration is shown at the top of Settings and on the System page.
 
 ## Setup
 Run from an elevated prompt (Windows PowerShell 5.1 blocks scripts, so call pwsh explicitly):
@@ -89,14 +95,14 @@ Optional parameters: `-InterfaceAlias 'Ethernet' -LanSubnet '192.168.0.0/24' -Po
 
 The script is idempotent. Each system-level change is printed and runs only after you confirm with `y`. It:
 1. Installs uv if missing, a repo-local Python 3.12 in `.python\` and dependencies in `.venv\`.
-2. Creates `data\`, `logs\` and `.env` (from `.env.example`), prompts for the bot token and dashboard credentials (hidden input), and reads the Telegram chat ID via `getUpdates` after you message the bot.
+2. Creates `data\` and `logs\`. No secrets are asked for.
 3. Sets the network profile to Private if needed.
 4. Installs NSSM machine-wide (winget, or the official zip with SHA256 verification into `C:\Program Files\nssm\`).
 5. Creates the local standard user `svc-straitwatch` with a random password that is not stored.
 6. Applies ACLs: the service account has Read & Execute on the repo, Modify on `data\` and `logs\` only, Read on `.env`.
 7. Creates an inbound firewall rule for TCP 8080, Private profile, LAN subnet only.
 8. Installs and starts the `StraitWatch` service (delayed auto start, restart on failure, rotating log in `logs\service.log`).
-9. Waits for `/health`, then sends a Telegram test alert.
+9. Waits for the service and prints the generated login and the Settings page URL.
 
 Python is kept inside the repo (not the per-user install) so the service account needs no rights outside the repo folder.
 

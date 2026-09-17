@@ -5,7 +5,7 @@
     <h2>Destination and schedule</h2>
     <form hx-post="/backup/settings" hx-target="#result" hx-swap="innerHTML">
       <p><label>Backup folder<br><input type="text" name="backup_dir" value="{{ cfg.backup_dir }}" size="50" placeholder="D:\Backups\strait-watch or \\nas\share\strait-watch"></label></p>
-      <p><label>Nightly at (SGT) <input type="text" name="backup_time" value="{{ cfg.backup_time }}" size="6" pattern="[0-2][0-9]:[0-5][0-9]"></label>
+      <p><label>Nightly at ({{ tz_label }}) <input type="text" name="backup_time" value="{{ cfg.backup_time }}" size="6" pattern="[0-2][0-9]:[0-5][0-9]"></label>
          <label style="margin-left:12px"><input type="checkbox" name="backup_enabled" value="1" {{ 'checked' if cfg.backup_enabled == '1' }}> enabled</label></p>
       <p>Keep <input type="text" name="keep_daily" value="{{ cfg.keep_daily }}" size="3"> daily,
          <input type="text" name="keep_weekly" value="{{ cfg.keep_weekly }}" size="3"> weekly (Sundays),

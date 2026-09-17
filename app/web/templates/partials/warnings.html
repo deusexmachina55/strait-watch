@@ -35,7 +35,7 @@
 <section class="card">
   <h2>Tripwire log</h2>
   <table>
-    <thead><tr><th>Time (SGT)</th><th>Tripwire</th><th>Sev</th><th>Detail</th><th>Alert</th></tr></thead>
+    <thead><tr><th>Time ({{ tz_label }})</th><th>Tripwire</th><th>Sev</th><th>Detail</th><th>Alert</th></tr></thead>
     <tbody>
     {% for t in tripwires %}
     <tr>

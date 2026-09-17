@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+{% block content %}
+{% macro secret_field(name, label, current, placeholder) %}
+<p><label>{{ label }}<br><input type="text" name="{{ name }}" size="52" placeholder="{{ placeholder }}" autocomplete="off">
+  <span class="muted">{% if current %}saved: {{ current }}{% else %}not set{% endif %}</span></label></p>
+{% endmacro %}
+
+<section class="tiles">
+  <div class="card tile"><div class="l">Alerts</div><div class="v {{ 'ok' if st.alerts else 'warn' }}">{{ 'on' if st.alerts else 'off' }}</div><div class="s">{{ 'Telegram bot and chat set' if st.alerts else ('bot set, chat not detected' if st.telegram_token else 'no Telegram bot') }}</div></div>
+  <div class="card tile"><div class="l">LLM providers</div><div class="v {{ 'ok' if st.llm else 'warn' }}">{{ st.llm | length }}</div><div class="s">{{ st.llm | join(', ') if st.llm else 'none: no translations, scoring or briefs' }}</div></div>
+  <div class="card tile"><div class="l">Ships (AIS)</div><div class="v {{ 'ok' if st.ships else 'warn' }}">{{ 'on' if st.ships else 'off' }}</div><div class="s">{{ 'aisstream key set' if st.ships else 'no aisstream key, map shows zones and aircraft only' }}</div></div>
+  <div class="card tile"><div class="l">Timezone</div><div class="v" style="font-size:18px">{{ st.timezone }}</div><div class="s">display timezone, restart to apply a change</div></div>
+</section>
+{% if st.initial_password_file %}
+<section class="card"><p class="warn">The generated initial password is still in <code>data\initial-password.txt</code>. Change the password below, then delete that file.</p></section>
+{% endif %}
+
+<section class="grid" style="grid-template-columns: 1fr 1fr">
+  <div class="card">
+    <h2>Login</h2>
+    <form hx-post="/settings/password" hx-target="#r-password" hx-swap="innerHTML">
+      <p><label>Username<br><input type="text" name="admin_user" value="{{ s.admin_user }}" size="24"></label></p>
+      <p><label>Current password<br><input type="password" name="current" size="24"></label></p>
+      <p><label>New password (min 16 characters)<br><input type="password" name="new" size="24"></label>
+         <label style="margin-left:12px">Confirm<br><input type="password" name="confirm" size="24"></label></p>
+      <p><button type="submit">Change login</button> <span id="r-password" class="muted"></span></p>
+    </form>
+    <p class="muted" style="font-size:12px">Applies immediately; the browser will ask you to log in again.</p>
+  </div>
+
+  <div class="card">
+    <h2>Telegram (alerts, digest, briefs)</h2>
+    <ol class="muted" style="font-size:12px; padding-left:18px">
+      <li>In Telegram, open <b>@BotFather</b>, send <code>/newbot</code>, follow the prompts, copy the token it gives you.</li>
+      <li>Paste the token below and press <b>Save and test</b>.</li>
+      <li>Open a chat with your new bot, send it any message, then press <b>Detect chat</b>.</li>
+    </ol>
+    <form hx-post="/settings/telegram" hx-target="#r-telegram" hx-swap="innerHTML">
+      {{ secret_field('telegram_bot_token', 'Bot token', m.telegram_bot_token, '123456789:AA...') }}
+      <p><button type="submit">Save and test</button>
+         <button type="button" hx-post="/settings/telegram/detect" hx-target="#r-telegram" hx-swap="innerHTML">Detect chat</button>
+         <button type="button" hx-post="/settings/telegram/send" hx-target="#r-telegram" hx-swap="innerHTML">Send test message</button>
+         <span id="r-telegram" class="muted">chat: {{ s.telegram_chat_id or 'not detected' }}</span></p>
+    </form>
+  </div>
+
+  <div class="card">
+    <h2>LLM providers (translations, scoring, briefs)</h2>
+    <p class="muted" style="font-size:12px">All free tiers, no card. One is enough; Groq is the most reliable. Tried in the order Gemini, Groq, OpenRouter.</p>
+    <form hx-post="/settings/llm" hx-target="#r-llm" hx-swap="innerHTML">
+      <p class="muted" style="font-size:12px">Groq: <a href="https://console.groq.com/keys" target="_blank" rel="noopener">console.groq.com/keys</a>, sign in, Create API Key, copy (starts with gsk_).</p>
+      {{ secret_field('groq_api_key', 'Groq key', m.groq_api_key, 'gsk_...') }}
+      <p class="muted" style="font-size:12px">Gemini: <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a>, Create API key, copy (starts with AIza).</p>
+      {{ secret_field('gemini_api_key', 'Gemini key', m.gemini_api_key, 'AIza...') }}
+      <p class="muted" style="font-size:12px">OpenRouter: <a href="https://openrouter.ai/settings/keys" target="_blank" rel="noopener">openrouter.ai/settings/keys</a>, Create Key, leave the credit limit empty, copy (starts with sk-or-).</p>
+      {{ secret_field('openrouter_api_key', 'OpenRouter key', m.openrouter_api_key, 'sk-or-...') }}
+      <p><button type="submit">Save and test</button> <span id="r-llm" class="muted"></span></p>
+    </form>
+  </div>
+
+  <div class="card">
+    <h2>Ships on the map (aisstream.io)</h2>
+    <ol class="muted" style="font-size:12px; padding-left:18px">
+      <li>Open <a href="https://aisstream.io" target="_blank" rel="noopener">aisstream.io</a>, Sign in with GitHub (a GitHub account is required).</li>
+      <li>API Keys, Create New API Key, copy it.</li>
+    </ol>
+    <form hx-post="/settings/ais" hx-target="#r-ais" hx-swap="innerHTML">
+      {{ secret_field('aisstream_api_key', 'aisstream key', m.aisstream_api_key, '') }}
+      <p><button type="submit">Save and test</button> <span id="r-ais" class="muted"></span></p>
+    </form>
+    <p class="muted" style="font-size:12px">The ship feed starts within 5 minutes of saving a working key.</p>
+  </div>
+
+  <div class="card">
+    <h2>NAS share credentials (backup to a UNC path)</h2>
+    <form hx-post="/settings/smb" hx-target="#r-smb" hx-swap="innerHTML">
+      <p><label>NAS user<br><input type="text" name="backup_smb_user" value="{{ s.backup_smb_user }}" size="24" autocomplete="off"></label></p>
+      {{ secret_field('backup_smb_pass', 'NAS password', m.backup_smb_pass, '') }}
+      <p><button type="submit">Save</button> <span id="r-smb" class="muted"></span></p>
+    </form>
+    <p class="muted" style="font-size:12px">Only needed when the backup destination is a network path. Test it on the Backup page.</p>
+  </div>
+
+  <div class="card">
+    <h2>Display timezone</h2>
+    <form hx-post="/settings/timezone" hx-target="#r-tz" hx-swap="innerHTML">
+      <p><label>IANA name<br><input type="text" name="timezone" value="{{ s.timezone or 'Asia/Singapore' }}" size="24" placeholder="Asia/Singapore"></label></p>
+      <p><button type="submit">Save</button> <span id="r-tz" class="muted"></span></p>
+    </form>
+    <p class="muted" style="font-size:12px">Examples: Asia/Singapore, Asia/Taipei, Asia/Tokyo, Europe/London, America/New_York. Takes effect after a service restart.</p>
+  </div>
+</section>
+<p class="muted" style="font-size:12px">Secrets are stored in the local database on this machine and never leave it except to call the service they belong to. Leave a field empty to keep the saved value.</p>
+{% endblock %}

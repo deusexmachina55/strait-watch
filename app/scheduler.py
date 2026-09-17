@@ -69,7 +69,7 @@ def start() -> None:
     add_job("adsb", adsb.run, minutes=2)
     add_job("watchdog", watchdog.run, minutes=30, run_now=False)
     add_job("backup", backup.tick, minutes=5, run_now=False)
-    ais.start()
+    add_job("ais_start", ais.start, minutes=5)
     # Index and tripwires, shortly after the collectors have had a chance to run
     add_job("scoring", scoring.run, minutes=10, run_now=False, next_run_time=datetime.now(timezone.utc) + timedelta(minutes=2))
     add_job("llm_analyze", analyze.run, minutes=30, run_now=False, next_run_time=datetime.now(timezone.utc) + timedelta(minutes=3))

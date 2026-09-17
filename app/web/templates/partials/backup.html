@@ -3,7 +3,7 @@
 <p>Last successful backup: {% if last_ok %}<span class="ok">{{ last_ok.when }}</span>, {{ last_ok.size_mb }} MB, {{ last_ok.path }}{% else %}<span class="warn">none yet</span>{% endif %}.
    Live database: {{ db_size }} MB.</p>
 <table>
-  <thead><tr><th>Time (SGT)</th><th>Result</th><th>Size</th><th>Detail</th></tr></thead>
+  <thead><tr><th>Time ({{ tz_label }})</th><th>Result</th><th>Size</th><th>Detail</th></tr></thead>
   <tbody>
   {% for b in history %}
   <tr>

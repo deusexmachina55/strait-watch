@@ -10,7 +10,7 @@ from contextlib import closing
 from datetime import datetime, timezone
 from pathlib import Path
 
-from app import db
+from app import db, settings as app_settings
 from app.config import DB_PATH, LOCAL_TZ
 
 DEFAULTS = {"backup_dir": "", "backup_time": "02:30", "keep_daily": "7", "keep_weekly": "4", "keep_monthly": "12", "backup_enabled": "0"}
@@ -34,7 +34,7 @@ def save_settings(values: dict) -> None:
 
 def connect_share(dest: Path) -> str:
     """Map a UNC share for the service account when credentials are configured. Returns a note for the log."""
-    user, pw = os.environ.get("BACKUP_SMB_USER"), os.environ.get("BACKUP_SMB_PASS")
+    user, pw = app_settings.get("backup_smb_user"), app_settings.get("backup_smb_pass")
     if not str(dest).startswith("\\\\") or not user:
         return ""
     parts = str(dest).strip("\\").split("\\")

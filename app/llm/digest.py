@@ -3,7 +3,7 @@ import logging
 from datetime import date, datetime, timedelta, timezone
 
 from app.alerts import telegram
-from app.config import LOCAL_TZ
+from app.config import LOCAL_TZ, TZ_LABEL
 from app.llm import chain
 from app.web import data
 
@@ -24,7 +24,7 @@ def build() -> str:
     prices = data.prices(ASSETS)
     pla = data.pla(7)["latest"]
 
-    lines = [f"Strait Watch morning digest, {datetime.now(LOCAL_TZ):%a %d %b %H:%M} SGT"]
+    lines = [f"Strait Watch morning digest, {datetime.now(LOCAL_TZ):%a %d %b %H:%M} {TZ_LABEL}"]
     cur, prev = s.get(today) or s.get(yesterday), s.get(yesterday)
     if cur:
         delta = f" ({cur['composite'] - prev['composite']:+.0f} vs yesterday)" if prev and cur is not prev else ""

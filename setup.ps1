@@ -4,9 +4,10 @@
 .SYNOPSIS
     One-shot, idempotent installer for Strait Watch.
 .DESCRIPTION
-    Installs uv, a repo-local Python and dependencies, creates .env, applies the
-    security baseline from DECISIONS.md, installs the Windows service and sends a
-    Telegram test alert. Every system-level change is printed and needs confirmation.
+    Installs uv, a repo-local Python and dependencies, applies the security baseline
+    from DECISIONS.md, installs and starts the Windows service, then prints the generated
+    login. Secrets (Telegram, API keys) are entered on the Settings page afterwards.
+    Every system-level change is printed and needs confirmation.
 #>
 param(
     [string]$InterfaceAlias = 'Ethernet',
@@ -31,22 +32,6 @@ function Invoke-Step([string]$Title, [string]$Command) {
     & ([scriptblock]::Create($Command))
 }
 
-function Get-EnvValue([string]$Key) {
-    $line = Get-Content $EnvFile | Where-Object { $_ -match "^$Key=" } | Select-Object -First 1
-    if ($line) { ($line -replace "^$Key=", '').Trim("'") } else { '' }
-}
-
-function Set-EnvValue([string]$Key, [string]$Value) {
-    if ($Value -match "'") { throw "$Key must not contain a single quote" }
-    $lines = @(Get-Content $EnvFile | Where-Object { $_ -notmatch "^$Key=" }) + "$Key='$Value'"
-    Set-Content $EnvFile $lines
-}
-
-function Read-Secret([string]$Prompt) {
-    do { $value = Read-Host $Prompt -MaskInput } while (-not $value)
-    $value
-}
-
 function Get-WingetNssm {
     Get-ChildItem 'C:\Program Files\WinGet\Packages\NSSM.NSSM*' -Recurse -Filter nssm.exe -ErrorAction SilentlyContinue |
         Where-Object FullName -match '\\win64\\' | Select-Object -First 1 -ExpandProperty FullName
@@ -66,32 +51,9 @@ uv sync --frozen
 if ($LASTEXITCODE) { throw 'uv sync failed' }
 Pop-Location
 
-# 2. Folders and .env
+# 2. Folders. Secrets (login, Telegram, API keys) are set on the Settings page after the service starts,
+#    so no .env is needed. An existing .env from an older install is imported on first start.
 New-Item -ItemType Directory -Force (Join-Path $Root 'data'), (Join-Path $Root 'logs') | Out-Null
-if (-not (Test-Path $EnvFile)) { Copy-Item (Join-Path $Root '.env.example') $EnvFile }
-
-if (-not (Get-EnvValue 'TELEGRAM_BOT_TOKEN')) {
-    Set-EnvValue 'TELEGRAM_BOT_TOKEN' (Read-Secret 'Telegram bot token')
-}
-if (-not (Get-EnvValue 'BASIC_AUTH_USER')) {
-    Set-EnvValue 'BASIC_AUTH_USER' (Read-Host 'Dashboard username')
-}
-if (-not (Get-EnvValue 'BASIC_AUTH_PASS')) {
-    do {
-        $pass = Read-Secret 'Dashboard password (min 16 chars)'
-        $confirm = Read-Secret 'Confirm password'
-    } while ($pass.Length -lt 16 -or $pass -cne $confirm)
-    Set-EnvValue 'BASIC_AUTH_PASS' $pass
-}
-if (-not (Get-EnvValue 'TELEGRAM_CHAT_ID')) {
-    $token = Get-EnvValue 'TELEGRAM_BOT_TOKEN'
-    Read-Host 'Send any message to your bot in Telegram, then press Enter'
-    $updates = Invoke-RestMethod "https://api.telegram.org/bot$token/getUpdates"
-    $chat = ($updates.result | Where-Object { $_.message } | Select-Object -Last 1).message.chat
-    if (-not $chat) { throw 'No message found in getUpdates. Message the bot and run setup again.' }
-    if ((Read-Host "Use chat $($chat.id) ($($chat.username)$($chat.title))? [y/N]") -notmatch '^[yY]$') { throw 'Chat ID not confirmed' }
-    Set-EnvValue 'TELEGRAM_CHAT_ID' $chat.id
-}
 
 # 3. Network profile: the firewall rule only applies on a Private network
 if ((Get-NetConnectionProfile -InterfaceAlias $InterfaceAlias).NetworkCategory -ne 'Private') {
@@ -145,7 +107,7 @@ icacls '$Root' /reset /T /C /Q
 icacls '$Root' /inheritance:r /grant:r '*S-1-5-32-544:(OI)(CI)F' '*S-1-5-18:(OI)(CI)F' '${me}:(OI)(CI)F' '${ServiceUser}:(OI)(CI)RX' /Q
 icacls '$Root\data' /grant '${ServiceUser}:(OI)(CI)M' /Q
 icacls '$Root\logs' /grant '${ServiceUser}:(OI)(CI)M' /Q
-icacls '$EnvFile' /inheritance:r /grant:r '*S-1-5-32-544:F' '*S-1-5-18:F' '${me}:F' '${ServiceUser}:R' /Q
+if (Test-Path '$EnvFile') { icacls '$EnvFile' /inheritance:r /grant:r '*S-1-5-32-544:F' '*S-1-5-18:F' '${me}:F' '${ServiceUser}:R' /Q }
 "@
 
 # 7. Firewall: inbound TCP port, Private profile, LAN subnet only
@@ -187,17 +149,21 @@ if (-not (Test-Service)) {
 }
 Remove-Variable pwPlain, pw -ErrorAction SilentlyContinue
 
-# 9. Health check and Telegram test alert
-$cred = [pscredential]::new((Get-EnvValue 'BASIC_AUTH_USER'), (ConvertTo-SecureString (Get-EnvValue 'BASIC_AUTH_PASS') -AsPlainText -Force))
-$auth = @{ Authentication = 'Basic'; Credential = $cred; AllowUnencryptedAuthentication = $true }
+# 9. Wait for the service, then show the login
 $health = $null
 for ($i = 0; $i -lt 60 -and $health.status -ne 'ok'; $i++) {
     Start-Sleep 2
-    $health = try { Invoke-RestMethod "http://localhost:$Port/health" @auth } catch { $null }
+    try { $health = Invoke-RestMethod "http://localhost:$Port/health" -SkipHttpErrorCheck } catch { $null }
+    if (-not $health -and (Test-Path (Join-Path $Root 'data\initial-password.txt'))) { break }
 }
-if ($health.status -ne 'ok') { throw "Service not healthy. Check $log" }
-Write-Host "`nService healthy: $($health.time)" -ForegroundColor Green
-
-Invoke-RestMethod "http://localhost:$Port/api/test-alert" -Method Post -Headers @{ 'X-Requested-With' = 'strait-watch' } @auth | Out-Null
-Write-Host 'Telegram test alert sent.' -ForegroundColor Green
-Write-Host "Dashboard: http://$((Get-NetIPAddress -InterfaceAlias $InterfaceAlias -AddressFamily IPv4).IPAddress):$Port/"
+$pwFile = Join-Path $Root 'data\initial-password.txt'
+$ip = (Get-NetIPAddress -InterfaceAlias $InterfaceAlias -AddressFamily IPv4).IPAddress
+Write-Host ""
+if (Test-Path $pwFile) {
+    Write-Host "Initial login (change it on the Settings page, then delete $pwFile):" -ForegroundColor Green
+    Get-Content $pwFile | Write-Host
+} else {
+    Write-Host "Login unchanged (existing password kept)." -ForegroundColor Green
+}
+Write-Host "Dashboard: http://${ip}:$Port/"
+Write-Host "Next: open http://${ip}:$Port/settings to connect Telegram and at least one LLM provider."

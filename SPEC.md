@@ -97,6 +97,10 @@ strait-watch/
 - Briefing tab: mechanical signals (index momentum, TSM vs SOX risk premium, Polymarket drift), daily/weekly/monthly LLM briefs from pre-aggregated facts, structured 14-day outlook graded against the index afterwards (scorecard). Same free LLM chain. Not a forecast of conflict.
 - Tab order: Overview, Briefing, Signals, Markets, News, Warnings, Map, System, Backup.
 
+### Phase 7: Settings and packaging (added 2026-09-18)
+- Settings tab: all per-person secrets and the timezone managed in the browser, stored in the database, each with a live test. First start generates the admin password. `.env` becomes optional (imported once).
+- Packaging (next): Build-Package.ps1 producing a zip with vendored Python, install.cmd bootstrap that installs PowerShell 7 and runs setup.ps1, upgrade.ps1, export-for-sharing that strips personal rows from a snapshot.
+
 ## Working agreement
 - Build only the phase asked for. Run it, test it, fix it, then commit and push.
 - Keep README.md updated with setup and operating notes.

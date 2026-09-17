@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 
 import httpx
 
-from app import db
+from app import db, settings
 from app.config import LOCAL_TZ, SETTINGS
 
 log = logging.getLogger("uvicorn.error")
@@ -71,13 +71,22 @@ def parse_json(text: str) -> dict:
     return json.loads(text[start:end + 1])
 
 
+def probe(name: str) -> None:
+    """One tiny call to check a provider key. Raises on failure. Counts as a call."""
+    p = next(p for p in CFG["providers"] if p["name"] == name)
+    key = settings.get(f"{name}_api_key")
+    text = CALLERS[name](key, p["model"], "Reply with JSON {\"ok\": true}", "ping", True)
+    parse_json(text)
+    record(name, p["model"], "probe", True)
+
+
 def complete(purpose: str, system: str, user: str, json_mode: bool = True):
     """Return (result, provider). Tries each configured provider in order; raises when all fail or the cap is hit."""
     if calls_today() >= CFG["daily_cap"]:
         raise CapReached(f"daily cap of {CFG['daily_cap']} LLM calls reached")
     errors = []
     for p in CFG["providers"]:
-        key = os.environ.get(f"{p['name'].upper()}_API_KEY", "")
+        key = settings.get(f"{p['name']}_api_key")
         if not key:
             continue
         try:

@@ -13,7 +13,7 @@ from datetime import date, datetime, timedelta, timezone
 
 import websockets
 
-from app import db, geo
+from app import db, geo, settings
 from app.config import LOCAL_TZ
 
 log = logging.getLogger("uvicorn.error")
@@ -94,7 +94,7 @@ class Collector:
 
     async def stream(self) -> None:
         async with websockets.connect(URL, open_timeout=30, ping_interval=20) as ws:
-            await ws.send(json.dumps({"APIKey": os.environ["AISSTREAM_API_KEY"], "BoundingBoxes": BOX,
+            await ws.send(json.dumps({"APIKey": settings.get("aisstream_api_key"), "BoundingBoxes": BOX,
                                       "FilterMessageTypes": ["PositionReport", "ShipStaticData"]}))
             last_flush = last_status = datetime.now(timezone.utc)
             while True:
@@ -132,9 +132,36 @@ class Collector:
                 await asyncio.sleep(30)
 
 
-def start() -> None:
+_thread: threading.Thread | None = None
+
+
+def start() -> str:
+    """Start the stream thread if a key exists and it is not already running. Safe to call repeatedly."""
+    global _thread
     from app.scheduler import record
-    if not os.environ.get("AISSTREAM_API_KEY"):
-        record("ais", False, "AISSTREAM_API_KEY not set")
-        return
-    threading.Thread(target=lambda: asyncio.run(Collector().forever()), name="ais", daemon=True).start()
+    if _thread and _thread.is_alive():
+        return "running"
+    if not settings.get("aisstream_api_key"):
+        record("ais", False, "aisstream key not set (Settings page)")
+        return "no key"
+    _thread = threading.Thread(target=lambda: asyncio.run(Collector().forever()), name="ais", daemon=True)
+    _thread.start()
+    return "started"
+
+
+def probe(key: str) -> int:
+    """Open the stream for 10 seconds with the given key and count messages. Raises if the key is rejected."""
+    async def run() -> int:
+        async with websockets.connect(URL, open_timeout=30) as ws:
+            await ws.send(json.dumps({"APIKey": key, "BoundingBoxes": BOX, "FilterMessageTypes": ["PositionReport"]}))
+            n, deadline = 0, asyncio.get_event_loop().time() + 10
+            while asyncio.get_event_loop().time() < deadline:
+                try:
+                    msg = json.loads(await asyncio.wait_for(ws.recv(), 3))
+                except asyncio.TimeoutError:
+                    continue
+                if msg.get("error") or msg.get("MessageType") == "error":
+                    raise RuntimeError(str(msg)[:200])
+                n += 1
+            return n
+    return asyncio.run(run())
