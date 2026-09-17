@@ -4,12 +4,12 @@ Personal early-warning dashboard for China/Taiwan/US tension in the Taiwan Strai
 See SPEC.md for scope and DECISIONS.md for locked decisions and security requirements.
 
 ## Current phase
-Phase 2b (map with live AIS and ADS-B layers) and the Phase 5 watchdog are done. Phases 1 to 4 are done. Remaining: Phase 5 NAS backup. See HANDOVER.md for operational notes.
+All phases built (1 to 7: collectors, scoring, map, LLM layer, backup and restore, briefing, settings and installer). See HANDOVER.md for operational notes and what is still untested.
 
 ## Map
-- `/map`: Leaflet (vendored) with a basemap switcher (top right): Esri Dark Gray with city labels (default), Esri Light Gray, Esri Ocean with labels, OpenStreetMap. All free, no key, attribution shown; the choice is remembered per browser. Layers: MSA closure zones (polygons parsed from the Chinese warning detail pages by the `msa_zones` job, colored by kind), Japan Joint Staff and Coast Guard notices placed on the named passage or island, coast guard and naval ships, tankers, other ships (AIS, last 60 minutes), military and civil aircraft (ADS-B, last 20 minutes), 12-hour tracks for coast guard, naval and military aircraft. Day picker or all 90 days. Refreshes every minute.
-- `ais` runs as a background thread on the aisstream.io websocket (key `AISSTREAM_API_KEY` in `.env`; without it the job reports "not set" and the layer stays empty). Box 20.5 to 27.5 N, 115.5 to 123.5 E. Keeps the latest position per vessel (7 days), 10-minute tracks for flagged classes, and per-day sightings in named areas (Kinmen, Matsu, Taiwan ports, the Strait box).
-- `adsb` polls adsb.lol every minute: civil aircraft within 250 nm of the Strait and all military aircraft in the region. Keeps 7 days of positions and 90 days of counts.
+- `/map`: Leaflet (vendored) with a basemap switcher (top right): Esri Dark Gray with city labels (default), Esri Light Gray, Esri Ocean with labels, OpenStreetMap. All free, no key, attribution shown. Basemap choice, layer checkboxes and the 90-day toggle are remembered per browser. Layers: MSA closure zones (polygons parsed from the Chinese warning detail pages by the `msa_zones` job, colored by kind), Japan Joint Staff and Coast Guard notices placed on the named passage or island, coast guard and naval ships, tankers, other ships (AIS, last 60 minutes), military and civil aircraft (ADS-B, last 20 minutes), 12-hour tracks for coast guard, naval and military aircraft. Day picker or all 90 days. Refreshes every minute.
+- `ais` runs as a background thread on the aisstream.io websocket (key on the Settings page; without it the job reports "not set" and the layer stays empty). Box 20.5 to 27.5 N, 115.5 to 123.5 E. Keeps the latest position per vessel (7 days), 10-minute tracks for flagged classes, and per-day sightings in named areas (Kinmen, Matsu, Taiwan ports, the Strait box).
+- `adsb` polls adsb.lol every 2 minutes: civil aircraft within 250 nm of the Strait and all military aircraft in the region. Keeps 7 days of positions and 90 days of counts.
 - Derived indicators feed the index: closed-zone area within 300 km of Taiwan, zones in the Strait, China Coast Guard hulls at Kinmen/Matsu and in the Strait, tankers at Taiwan ports, military aircraft per day, mean civil traffic. Tripwires: any zone in the Strait, CCG surge at Kinmen, military aircraft surge.
 - English-titled MSA entries are duplicates of the Chinese ones with dead links; only Chinese entries (`lang = 'zh'`) are counted, translated and mapped.
 
@@ -24,15 +24,15 @@ Phase 2b (map with live AIS and ADS-B layers) and the Phase 5 watchdog are done.
 - `/backup` page: set the destination folder (local drive or UNC path), nightly time (SGT), retention (7 daily, 4 weekly on Sundays, 12 monthly on the 1st) and enable it. Buttons: Test destination, Backup now. Settings are stored in the database (the service cannot write `config.toml`).
 - Each run writes a `VACUUM INTO` snapshot to `data\backups\` (last 3 kept), then copies it to `<destination>\daily\`, and to `weekly\` or `monthly\` on those days. The `backup` job checks every 5 minutes whether tonight's run is due.
 - Local drive: the service account `svc-straitwatch` needs Modify on the folder, e.g. `icacls "D:\Backups\strait-watch" /grant svc-straitwatch:(OI)(CI)M` from an admin prompt.
-- UNC path: put a NAS user with write access to that share in `.env` as `BACKUP_SMB_USER` and `BACKUP_SMB_PASS`, restart the service. The job runs `net use` before copying.
+- UNC path: enter a NAS user with write access to that share on the Settings page (NAS share credentials). The job runs `net use` before copying.
 - Restore: on the Backup page, pick a snapshot (local, or from the destination's daily/weekly/monthly folders) or type a path, and press Restore. No restart: collectors pause, the snapshot is integrity-checked, a safety copy of the current database goes to `data\backups\*-pre-restore.db`, the snapshot is copied into the live database with SQLite's online backup API, collectors resume.
-- Fresh install with history: run `setup.ps1`, open the Backup page, set the destination, Test destination, Restore the newest snapshot.
+- Fresh install with history: run the installer, open the Backup page, set the destination, Test destination, Restore the snapshot shipped in the installer folder or the newest one from your destination.
 
 ## Watchdog
 The `watchdog` job (every 30 minutes) sends a Telegram alert when a job has had no successful run within its allowed age (`config.toml` `[watchdog.max_age_hours]`), one alert per job per 12 hours. Alerts are listed in the tripwire log as `watchdog_<job>`.
 
 ## LLM layer
-- Chain in `config.toml` `[llm]`: Gemini, then Groq, then OpenRouter, all free tiers. A provider is skipped when its key is missing from `.env`, and the next one is tried on any error or rate limit. Every call is logged in `llm_calls`; a hard daily cap (`daily_cap`, SGT day) stops all LLM work when reached.
+- Chain in `config.toml` `[llm]`: Gemini, then Groq, then OpenRouter, all free tiers. A provider is skipped when its key is not set on the Settings page, and the next one is tried on any error or rate limit. Every call is logged in `llm_calls`; a hard daily cap (`daily_cap`, SGT day) stops all LLM work when reached.
 - `llm_analyze` job (every 30 min): sends up to `batch_size` unanalyzed relevant items from the last `max_item_age_days` days and gets back category, severity 1 to 5, physical vs rhetoric, novel vs rehash, an English title for non-English items and a one-line summary (`item_analysis`). It also translates untranslated military MSA warning titles (40 per run). Translations show in parentheses on the News and Warnings pages.
 - Severity feeds the index: daily sums of physical-item severity go into the military sub-score, the rest into rhetoric (`llm_physical`, `llm_rhetoric` in `[scoring]`).
 - Keyword tripwire alerts get a two-sentence LLM summary when a provider answers; alerts never wait on a failed provider.
@@ -43,11 +43,15 @@ The `watchdog` job (every 30 minutes) sends a Telegram alert when a job has had 
 | Page | Content | Auto-refresh |
 |---|---|---|
 | `/` Overview | Tension index and sub-scores, key tiles, key prices, PLA/MSA/GDELT charts, recent tripwires and items | 60 s |
+| `/signals` | Polymarket odds with 90-day probability chart, US State Department advisories with history | 5 min |
 | `/news` | All items with source filter, title search, relevance toggle | 60 s |
 | `/markets` | Instrument groups from `config.toml` (`[[prices.groups]]`): last price, 1d/5d/30d change, 30-day sparkline, 90-day comparison chart per group | 60 s |
 | `/warnings` | China MSA navigation warnings (region filter, military only), Japan Joint Staff and Coast Guard notices, full tripwire log | 5 min |
-| `/signals` | Polymarket odds with 90-day probability chart, US State Department advisories with history | 5 min |
-| `/system` | Service status, DB size, job table, recent failures, Telegram test button | 30 s |
+| `/briefing` | Mechanical signals, risk premium chart, daily/weekly/monthly briefs with graded outlook | 5 min |
+| `/map` | Basemap switcher, closure zones, notices, ships, aircraft, tracks, day picker | 60 s |
+| `/system` | Service status, version, integrations, DB size, last backup, job table, recent failures, Telegram test button | 30 s |
+| `/backup` | Destination, schedule, retention, Backup now, history, Restore | 30 s |
+| `/settings` | Login, Telegram, LLM keys, aisstream key, NAS credentials, timezone, each with a test | none |
 
 Refresh is done by htmx polling the `/partials/*` endpoints and swapping the page section, no full reload. Prices are only as fresh as the `prices` job (5 minutes in market hours).
 
@@ -117,7 +121,7 @@ Python is kept inside the repo (not the per-user install) so the service account
 | Uninstall service, firewall rule and service account (elevated) | `pwsh -ExecutionPolicy Bypass -File service.ps1 uninstall` |
 | Logs | `logs\service.log` |
 
-- Dashboard: `http://<dell-ip>:8080/` (basic auth, credentials in `.env`). Chart.js and htmx are served from `app/web/static`, no CDN.
+- Dashboard: `http://<dell-ip>:8080/` (basic auth, login set on the Settings page). Chart.js and htmx are served from `app/web/static`, no CDN.
 - Health JSON: `/health`. `status` is `ok` when the heartbeat ran within 180 seconds.
 - Test alert: button on the System page, or `POST /api/test-alert` with header `X-Requested-With: strait-watch`.
 - `service.ps1 restart` stops via the service manager, waits up to 30 s, kills the process tree if still pending, then starts.

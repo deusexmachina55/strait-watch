@@ -41,8 +41,18 @@ const KIND = { live_fire: css('--crit'), exercise: css('--s2'), rocket: css('--s
 const CLS = { coast_guard: css('--s5'), military: css('--crit'), law: css('--s5'), tanker: css('--s3'), cargo: '#6b7280', fishing: '#4b5563', other: '#6b7280' };
 const esc = s => (s || '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const icon = (ch, deg, color, size) => L.divIcon({ className: 'ico', html: `<span style="display:inline-block;color:${color};font-size:${size || 14}px;transform:rotate(${deg || 0}deg)">${ch}</span>`, iconSize: [16, 16], iconAnchor: [8, 8] });
+// Layer checkboxes and the "all 90 days" toggle are remembered in this browser
+const boxes = [...document.querySelectorAll('input.layer'), document.getElementById('all')];
+try {
+  const saved = JSON.parse(localStorage.getItem('sw-map-layers') || '{}');
+  boxes.forEach(c => { const k = c.dataset.layer || c.id; if (k in saved) c.checked = saved[k]; });
+} catch (e) {}
+function remember() {
+  try { localStorage.setItem('sw-map-layers', JSON.stringify(Object.fromEntries(boxes.map(c => [c.dataset.layer || c.id, c.checked])))); } catch (e) {}
+}
 function apply() {
   document.querySelectorAll('input.layer').forEach(c => { const g = groups[c.dataset.layer]; c.checked ? g.addTo(map) : map.removeLayer(g); });
+  remember();
 }
 async function load() {
   const all = document.getElementById('all').checked, day = document.getElementById('day').value;
