@@ -26,14 +26,28 @@ if ($Action -eq 'status') {
 $isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
 if (-not $isAdmin) { throw "'$Action' needs an elevated PowerShell." }
 
-# Use the Windows service manager for start/stop; nssm's own commands can hang waiting for the app
-if ($Action -ne 'uninstall') {
-    $cmd = "{0}-Service $ServiceName" -f (Get-Culture).TextInfo.ToTitleCase($Action)
-    Write-Host $cmd -ForegroundColor Yellow
-    & ([scriptblock]::Create($cmd))
-    Get-Service $ServiceName | Select-Object Status
-    exit
+function Stop-Hard {
+    # Ask the service manager to stop, wait up to 30s, then kill nssm and the app if still pending
+    Write-Host "Stop-Service $ServiceName -NoWait" -ForegroundColor Yellow
+    Stop-Service $ServiceName -NoWait -ErrorAction SilentlyContinue
+    for ($i = 0; $i -lt 30; $i++) {
+        if ((Get-Service $ServiceName).Status -eq 'Stopped') { Write-Host "Stopped after ${i}s"; return }
+        Start-Sleep 1
+    }
+    $pid_ = (Get-CimInstance Win32_Service -Filter "Name='$ServiceName'").ProcessId
+    Write-Host "Still $((Get-Service $ServiceName).Status). Killing process tree of PID $pid_" -ForegroundColor Yellow
+    if ($pid_) { taskkill /PID $pid_ /T /F | Out-Null }
+    Start-Sleep 2
+    Write-Host "State: $((Get-Service $ServiceName).Status)"
 }
+
+if ($Action -in 'stop', 'restart') { Stop-Hard }
+if ($Action -in 'start', 'restart') {
+    Write-Host "Start-Service $ServiceName" -ForegroundColor Yellow
+    Start-Service $ServiceName
+    Write-Host "State: $((Get-Service $ServiceName).Status)"
+}
+if ($Action -ne 'uninstall') { exit }
 
 $commands = @"
 & '$nssm' stop $ServiceName

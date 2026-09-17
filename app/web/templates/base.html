@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Strait Watch</title>
+<style>
+  :root {
+    color-scheme: dark;
+    --page: #0d0d0d; --surface: #1a1a19; --border: rgba(255,255,255,.10);
+    --text: #ffffff; --text-2: #c3c2b7; --muted: #898781; --grid: #2c2c2a;
+    --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500; --s5: #d55181; --s6: #008300; --s7: #9085e9; --s8: #e66767;
+    --good: #0ca30c; --warn: #fab219; --crit: #d03b3b;
+  }
+  * { box-sizing: border-box; }
+  body { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; background: var(--page); color: var(--text); margin: 0; padding: 16px; font-size: 14px; }
+  header { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 20px; margin-bottom: 16px; }
+  h1 { font-size: 20px; margin: 0; } h1 a { text-decoration: none; }
+  nav a { color: var(--text-2); text-decoration: none; padding: 4px 10px; border-radius: 4px; }
+  nav a.active { background: var(--surface); color: var(--text); border: 1px solid var(--border); }
+  nav a:hover { color: var(--text); text-decoration: none; }
+  h2 { font-size: 14px; font-weight: 600; margin: 0 0 8px; color: var(--text-2); }
+  .muted { color: var(--muted); }
+  .ok { color: var(--good); } .bad { color: var(--crit); } .warn { color: var(--warn); }
+  .grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); margin-bottom: 12px; }
+  .tiles { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); margin-bottom: 12px; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 12px; min-width: 0; margin-bottom: 12px; }
+  .grid .card, .tiles .card { margin-bottom: 0; }
+  .tile .v { font-size: 26px; font-weight: 600; line-height: 1.1; }
+  .tile .l { color: var(--muted); font-size: 12px; margin-bottom: 4px; }
+  .tile .s { color: var(--text-2); font-size: 12px; margin-top: 4px; }
+  .chart { position: relative; height: 200px; }
+  .prices { display: grid; gap: 8px; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
+  .price { padding: 8px; border: 1px solid var(--border); border-radius: 6px; }
+  .price .l { font-size: 12px; color: var(--muted); }
+  .price .p { font-size: 16px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .price .c { font-size: 12px; font-variant-numeric: tabular-nums; }
+  .spark-wrap { position: relative; height: 36px; margin-top: 4px; }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--grid); vertical-align: top; }
+  th { color: var(--muted); font-weight: 500; font-size: 12px; }
+  td { font-variant-numeric: tabular-nums; }
+  td.num, th.num { text-align: right; }
+  .nowrap { white-space: nowrap; }
+  a { color: var(--text); text-decoration: none; } a:hover { text-decoration: underline; }
+  .tag { display: inline-block; font-size: 11px; color: var(--text-2); border: 1px solid var(--border); border-radius: 10px; padding: 0 7px; margin: 1px 2px 1px 0; }
+  .toolbar { display: flex; gap: 10px; align-items: center; margin-bottom: 8px; flex-wrap: wrap; }
+  select, button, input[type=text] { font: inherit; background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 4px; padding: 4px 8px; }
+  button { cursor: pointer; }
+  .legend { display: flex; gap: 12px; font-size: 12px; color: var(--text-2); margin-bottom: 4px; flex-wrap: wrap; }
+  .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 4px; vertical-align: -1px; }
+  .index { grid-template-columns: minmax(220px, 1fr) 2fr 2fr; }
+  @media (max-width: 900px) { .index { grid-template-columns: 1fr; } }
+  .hero { font-size: 56px; font-weight: 600; line-height: 1; }
+  .sub { display: grid; grid-template-columns: 70px 1fr 30px; gap: 8px; align-items: center; font-size: 12px; margin: 4px 0; }
+  .sub-l { color: var(--muted); text-transform: capitalize; }
+  .sub-v { text-align: right; font-variant-numeric: tabular-nums; }
+  .bar { height: 8px; background: var(--grid); border-radius: 4px; overflow: hidden; }
+  .bar span { display: block; height: 100%; background: var(--s1); border-radius: 4px; }
+  .market { display: grid; gap: 12px; grid-template-columns: 3fr 2fr; }
+  @media (max-width: 900px) { .market { grid-template-columns: 1fr; } }
+  .market td.spark-cell { width: 120px; padding: 2px 8px; }
+  .market .spark-wrap { height: 28px; margin: 0; }
+  .htmx-request .refresh { opacity: .5; }
+</style>
+<script src="/static/htmx.min.js"></script>
+<script src="/static/chart.umd.min.js"></script>
+<script>
+const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const short = d => d.slice(5);
+Chart.defaults.color = css('--muted');
+Chart.defaults.borderColor = css('--grid');
+Chart.defaults.font.family = 'system-ui, -apple-system, "Segoe UI", sans-serif';
+const base = {
+  responsive: true, maintainAspectRatio: false, animation: false,
+  interaction: { mode: 'index', intersect: false },
+  plugins: { legend: { display: false }, tooltip: { backgroundColor: css('--surface'), borderColor: css('--border'), borderWidth: 1, titleColor: css('--text'), bodyColor: css('--text-2') } },
+  scales: { x: { grid: { display: false }, ticks: { maxTicksLimit: 8, maxRotation: 0 } }, y: { beginAtZero: true, grid: { color: css('--grid') }, ticks: { maxTicksLimit: 5 } } },
+};
+const el = id => typeof id === 'string' ? document.getElementById(id) : id;
+const bars = (id, labels, datasets, stacked) => new Chart(el(id), {
+  type: 'bar',
+  data: { labels: labels.map(short), datasets: datasets.map(d => ({ ...d, borderWidth: 0, borderRadius: 2, borderSkipped: 'start', maxBarThickness: 12 })) },
+  options: { ...base, scales: { x: { ...base.scales.x, stacked }, y: { ...base.scales.y, stacked } } },
+});
+const line = (id, labels, datasets, yOpts) => new Chart(el(id), {
+  type: 'line',
+  data: { labels: labels.map(short), datasets: datasets.map(d => ({ ...d, backgroundColor: d.borderColor, borderWidth: 2, pointRadius: 0, pointHoverRadius: 4, spanGaps: true })) },
+  options: { ...base, scales: { x: base.scales.x, y: { ...base.scales.y, ...yOpts } } },
+});
+const pct = { beginAtZero: false, ticks: { maxTicksLimit: 5, callback: v => v + '%' } };
+const sparks = root => root.querySelectorAll('canvas.spark').forEach(c => {
+  const v = JSON.parse(c.dataset.values);
+  if (v.length < 2) return;
+  const up = v[v.length - 1] >= v[0];
+  new Chart(c, { type: 'line', data: { labels: v.map((_, i) => i), datasets: [{ data: v, borderColor: css(up ? '--good' : '--crit'), borderWidth: 1.5, pointRadius: 0 }] },
+    options: { responsive: true, maintainAspectRatio: false, animation: false, plugins: { legend: { display: false }, tooltip: { enabled: false } }, scales: { x: { display: false }, y: { display: false } } } });
+});
+</script>
+</head>
+<body>
+<header>
+  <h1><a href="/">Strait Watch</a></h1>
+  <nav>
+    {% for href, name in [('/', 'Overview'), ('/news', 'News'), ('/markets', 'Markets'), ('/warnings', 'Warnings'), ('/system', 'System')] %}
+    <a href="{{ href }}" class="{{ 'active' if page == name else '' }}">{{ name }}</a>
+    {% endfor %}
+  </nav>
+  <span class="muted">{{ time }}</span>
+  <span>Service <strong class="{{ 'ok' if status == 'ok' else 'bad' }}">{{ status }}</strong></span>
+</header>
+{% block content %}{% endblock %}
+</body>
+</html>

@@ -8,7 +8,9 @@ import yfinance as yf
 from app import db
 from app.config import SETTINGS
 
-SYMBOLS = SETTINGS["prices"]["symbols"]
+GROUPS = SETTINGS["prices"]["groups"]
+SYMBOLS = list(dict.fromkeys(s for g in GROUPS for s in g["symbols"]))
+LABELS = {s: l for g in GROUPS for s, l in zip(g["symbols"], g["labels"])}
 MARKETS = [  # (timezone, open, close) regular sessions, Monday to Friday
     (ZoneInfo("Asia/Taipei"), time(9, 0), time(13, 30)),
     (ZoneInfo("America/New_York"), time(9, 30), time(16, 0)),
@@ -38,7 +40,7 @@ def run() -> str:
     if not market_open(now) and now.minute % 15 >= 5:
         return "skipped (markets closed)"
     with closing(db.connect()) as conn:
-        have_daily = conn.execute("SELECT COUNT(*) FROM prices_daily").fetchone()[0] > 0
+        have_daily = conn.execute("SELECT COUNT(DISTINCT symbol) FROM prices_daily").fetchone()[0] >= len(SYMBOLS)
 
     intraday = yf.download(SYMBOLS, period="5d", interval="5m", group_by="ticker", progress=False, auto_adjust=True)
     daily = yf.download(SYMBOLS, period="10d" if have_daily else "2y", interval="1d", group_by="ticker",
@@ -57,8 +59,9 @@ def run() -> str:
         days += [(s, day, c) for (s, day), c in derived.items()]
         conn.executemany("INSERT OR REPLACE INTO prices_daily (symbol, day, close) VALUES (?, ?, ?)", days)
         conn.execute("DELETE FROM prices_intraday WHERE ts_utc < ?", (cutoff,))
-    symbols_seen = {b[0] for b in bars}
-    missing = [s for s in SYMBOLS if s not in symbols_seen]
-    if missing:
-        raise RuntimeError(f"no intraday data for {', '.join(missing)}")
-    return f"{len(bars)} bars, {len(days)} daily closes"
+    seen = {b[0] for b in bars}
+    missing = [s for s in SYMBOLS if s not in seen]
+    if len(missing) == len(SYMBOLS):
+        raise RuntimeError("no intraday data for any symbol")
+    note = f", no data for {', '.join(missing)}" if missing else ""
+    return f"{len(bars)} bars, {len(days)} daily closes{note}"

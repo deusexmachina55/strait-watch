@@ -1,0 +1,37 @@
+{% macro chg(c) %}<td class="num {{ 'ok' if c and c > 0 else ('bad' if c and c < 0 else 'muted') }}">{{ '%+.2f%%' % c if c is not none else '–' }}</td>{% endmacro %}
+{% for g in groups %}
+<section class="card market">
+  <div>
+    <h2>{{ g.name }}</h2>
+    <table>
+      <thead><tr><th>Instrument</th><th class="num">Last</th><th class="num">1d</th><th class="num">5d</th><th class="num">30d</th><th></th><th>As of</th></tr></thead>
+      <tbody>
+      {% for p in g.instruments %}
+      <tr>
+        <td class="nowrap">{{ p.label }} <span class="muted">{{ p.symbol }}</span></td>
+        <td class="num">{{ fmt_price(p.price) }}</td>
+        {{ chg(p.changes['1d']) }}{{ chg(p.changes['5d']) }}{{ chg(p.changes['30d']) }}
+        <td class="spark-cell"><div class="spark-wrap"><canvas class="spark" data-values='{{ p.spark | tojson }}'></canvas></div></td>
+        <td class="nowrap muted">{{ p.as_of or '' }}</td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div>
+    <h2>Change since 90 days ago</h2>
+    <div class="legend">{% for p in g.instruments %}<span><i style="background:var(--s{{ loop.index }})"></i>{{ p.label }}</span>{% endfor %}</div>
+    <div class="chart"><canvas class="group-chart" data-changes='{{ g.changes | tojson }}' data-labels='{{ g.instruments | map(attribute="label") | list | tojson }}'></canvas></div>
+  </div>
+</section>
+{% endfor %}
+<script>
+(() => {
+  const root = document.getElementById('markets');
+  sparks(root);
+  root.querySelectorAll('canvas.group-chart').forEach(c => {
+    const ch = JSON.parse(c.dataset.changes), labels = JSON.parse(c.dataset.labels);
+    line(c, ch.labels, Object.keys(ch.series).map((s, i) => ({ label: labels[i], data: ch.series[s], borderColor: css('--s' + (i + 1)) })), pct);
+  });
+})();
+</script>

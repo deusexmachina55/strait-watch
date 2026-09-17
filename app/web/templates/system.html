@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block content %}
+<div id="system" class="refresh" hx-get="/partials/system" hx-trigger="every 30s" hx-swap="innerHTML">
+  {% include "partials/system.html" %}
+</div>
+<section class="card">
+  <button id="test-alert">Send Telegram test alert</button> <span id="result" class="muted"></span>
+</section>
+<script>
+document.getElementById('test-alert').onclick = async () => {
+  const result = document.getElementById('result');
+  const r = await fetch('/api/test-alert', { method: 'POST', headers: { 'X-Requested-With': 'strait-watch' } });
+  result.textContent = r.ok ? 'Sent.' : `Failed (${r.status}).`;
+};
+</script>
+{% endblock %}

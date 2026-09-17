@@ -1,0 +1,7 @@
+{% extends "base.html" %}
+{% block content %}
+<p class="muted" style="margin:0 0 12px">Prices from Yahoo Finance via yfinance, 5-minute bars in market hours, 15 minutes otherwise. Page updates every minute. Change columns are versus the previous daily close and the closes 5 and 30 calendar days ago. Sparklines show 30 days of daily closes.</p>
+<div id="markets" class="refresh" hx-get="/partials/markets" hx-trigger="every 60s" hx-swap="innerHTML">
+  {% include "partials/markets.html" %}
+</div>
+{% endblock %}

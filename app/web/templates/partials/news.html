@@ -1,4 +1,4 @@
-<table class="items">
+<table>
   <thead><tr><th>Time (SGT)</th><th>Source</th><th>Title</th><th>Tags</th></tr></thead>
   <tbody>
   {% for it in items %}
@@ -9,7 +9,7 @@
     <td>{% for t in it.tags %}<span class="tag">{{ t }}</span>{% endfor %}</td>
   </tr>
   {% else %}
-  <tr><td colspan="4" class="muted">No items yet.</td></tr>
+  <tr><td colspan="4" class="muted">No items match.</td></tr>
   {% endfor %}
   </tbody>
 </table>

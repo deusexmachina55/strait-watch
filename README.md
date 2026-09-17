@@ -6,6 +6,17 @@ See SPEC.md for scope and DECISIONS.md for locked decisions and security require
 ## Current phase
 Phase 3: scoring and tripwires. Phases 1 (service) and 2 (collectors, dashboard) are done.
 
+## Pages
+| Page | Content | Auto-refresh |
+|---|---|---|
+| `/` Overview | Tension index and sub-scores, key tiles, key prices, PLA/MSA/GDELT charts, recent tripwires and items | 60 s |
+| `/news` | All items with source filter, title search, relevance toggle | 60 s |
+| `/markets` | Instrument groups from `config.toml` (`[[prices.groups]]`): last price, 1d/5d/30d change, 30-day sparkline, 90-day comparison chart per group | 60 s |
+| `/warnings` | China MSA navigation warnings (region filter, military only), Japan Joint Staff and Coast Guard notices, US advisories, Polymarket, full tripwire log | 5 min |
+| `/system` | Service status, DB size, job table, recent failures, Telegram test button | 30 s |
+
+Refresh is done by htmx polling the `/partials/*` endpoints and swapping the page section, no full reload. Prices are only as fresh as the `prices` job (5 minutes in market hours).
+
 ## Index and tripwires
 - The `scoring` job runs every 10 minutes. It builds daily indicator series (PLA counts, MSA military warnings, GDELT conflict events, Japan and Coast Guard sightings, tagged item counts, Polymarket odds, State Dept level, 5-day returns for TSM, SOX, gold and CNH), compares each day with its trailing 30-day and 90-day baseline, and writes sub-scores (military, economic, diplomatic, rhetoric) and a composite 0-100 index per day to the `scores` table. 50 means "at baseline", each standard deviation adds 15 points.
 - While an indicator has little history, a prior (typical 2024-2025 values in `config.toml`) stands in for the baseline and fades out over 14 days. MND history starts from install day, so PLA baselines are rough for the first month.
@@ -18,7 +29,7 @@ Phase 3: scoring and tripwires. Phases 1 (service) and 2 (collectors, dashboard)
 | Taiwan MND daily PLA report | `mnd` | hourly 08:05 to 18:05 SGT | aircraft, aircraft entering Taiwan airspace, median line, navy and official ships, balloons. Site keeps 9 days only |
 | GDELT 2.0 event files | `gdelt`, `gdelt_backfill` | 15 min; backfill every 2 min until 90 days done | per-day counts for CHN-TWN, CHN-USA, CHN-JPN, CHN-PHL dyads |
 | RSS and Google News | `rss` | 15 min | feeds in `config.toml` |
-| Prices (yfinance) | `prices` | 5 min in market hours, 15 min otherwise | 5-minute bars kept 30 days, daily closes 2 years |
+| Prices (yfinance) | `prices` | 5 min in market hours, 15 min otherwise | 30 instruments in `config.toml` groups (Taiwan/semis, Mag 7, commodities, crypto, FX). 5-minute bars kept 30 days, daily closes 2 years |
 | China MSA navigation warnings | `msa` | hourly | Fujian, Zhejiang, Shanghai, Guangdong, Shandong. Military terms flagged. First run backfills 90 days (about 3 min) |
 | Japan Joint Staff releases | `japan_mod` | 3 h | Chinese ship and aircraft movements near Japan |
 | Taiwan Coast Guard releases | `coast_guard` | 3 h | China Coast Guard incursions |
@@ -64,7 +75,8 @@ Python is kept inside the repo (not the per-user install) so the service account
 
 - Dashboard: `http://<dell-ip>:8080/` (basic auth, credentials in `.env`). Chart.js and htmx are served from `app/web/static`, no CDN.
 - Health JSON: `/health`. `status` is `ok` when the heartbeat ran within 180 seconds.
-- Test alert: button on the dashboard, or `POST /api/test-alert` with header `X-Requested-With: strait-watch`.
+- Test alert: button on the System page, or `POST /api/test-alert` with header `X-Requested-With: strait-watch`.
+- `service.ps1 restart` stops via the service manager, waits up to 30 s, kills the process tree if still pending, then starts.
 - After code or dependency changes, re-run `./setup.ps1`: it syncs dependencies, reapplies ACLs and restarts the service.
 - Changing service settings (port, arguments): `./service.ps1 uninstall`, then `./setup.ps1`.
 

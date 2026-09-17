@@ -1,0 +1,32 @@
+<section class="tiles">
+  <div class="card tile"><div class="l">Service</div><div class="v {{ 'ok' if status == 'ok' else 'bad' }}">{{ status }}</div><div class="s">uptime {{ uptime_seconds // 3600 }}h {{ (uptime_seconds % 3600) // 60 }}m</div></div>
+  <div class="card tile"><div class="l">Database</div><div class="v">{{ db_size }} MB</div><div class="s">data\strait.db (WAL)</div></div>
+  <div class="card tile"><div class="l">Job failures logged</div><div class="v {{ 'bad' if failures else '' }}">{{ failures | length }}</div><div class="s">last 20 shown below</div></div>
+</section>
+<section class="card">
+  <h2>Jobs</h2>
+  <table>
+    <thead><tr><th>Job</th><th>Last run (SGT)</th><th>Age</th><th>Result</th><th>Message</th></tr></thead>
+    <tbody>
+    {% for name, job in jobs.items() %}
+    <tr>
+      <td>{{ name }}</td>
+      <td class="nowrap">{{ job.last_run }}</td>
+      <td class="nowrap muted">{{ job.age_seconds // 60 }} min</td>
+      <td class="{{ 'ok' if job.ok else 'bad' }}">{{ 'ok' if job.ok else 'failed' }}</td>
+      <td>{{ job.message or '' }}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% if failures %}
+<section class="card">
+  <h2>Recent failures</h2>
+  <table>
+    <tbody>
+    {% for f in failures %}<tr><td class="nowrap muted">{{ f.when }}</td><td>{{ f.job }}</td><td>{{ f.message }}</td></tr>{% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endif %}

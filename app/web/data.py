@@ -1,9 +1,12 @@
-"""Read queries for the dashboard."""
+"""Read queries for the web pages."""
 from contextlib import closing
 from datetime import date, datetime, timedelta, timezone
 
 from app import db
-from app.config import LOCAL_TZ, SETTINGS
+from app.config import DB_PATH, LOCAL_TZ, SETTINGS
+
+GROUPS = SETTINGS["prices"]["groups"]
+LABELS = {s: l for g in GROUPS for s, l in zip(g["symbols"], g["labels"])}
 
 
 def local(iso_utc: str, fmt: str = "%d %b %H:%M") -> str:
@@ -19,6 +22,8 @@ def days_back(n: int) -> list[str]:
     today = date.today()
     return [(today - timedelta(days=i)).isoformat() for i in range(n - 1, -1, -1)]
 
+
+# Indicators
 
 def pla(days: int = 90) -> dict:
     labels = days_back(days)
@@ -53,25 +58,83 @@ def msa(days: int = 90) -> dict:
             "last7": last7, "fujian7": fujian7}
 
 
-def prices(days: int = 60) -> list[dict]:
-    cfg = SETTINGS["prices"]
-    since = (date.today() - timedelta(days=days)).isoformat()
+def msa_warnings(region: str = "", military_only: bool = True, limit: int = 200) -> list[dict]:
+    sql, params = "SELECT region, number, title, issued_date, url FROM msa_warnings WHERE 1=1", []
+    if region:
+        sql += " AND region = ?"
+        params.append(region)
+    if military_only:
+        sql += " AND military = 1"
+    sql += " ORDER BY issued_date DESC, number DESC LIMIT ?"
+    return rows(sql, *params, limit)
+
+
+# Prices
+
+def prices(symbols: list[str], spark_days: int = 30) -> list[dict]:
+    today = date.today()
+    since = (today - timedelta(days=45)).isoformat()
     daily = rows("SELECT symbol, day, close FROM prices_daily WHERE day >= ? ORDER BY day", since)
     last = {r["symbol"]: r for r in rows("SELECT symbol, MAX(ts_utc) AS ts_utc, close FROM prices_intraday GROUP BY symbol")}
     out = []
-    for symbol, label in zip(cfg["symbols"], cfg["labels"]):
-        closes = [r["close"] for r in daily if r["symbol"] == symbol]
+    for symbol in symbols:
+        closes = [(r["day"], r["close"]) for r in daily if r["symbol"] == symbol]
         latest = last.get(symbol)
-        price = latest["close"] if latest else (closes[-1] if closes else None)
-        # Change versus the previous daily close (today's partial close is excluded when intraday exists)
-        ref = None
-        if latest and len(closes) >= 1:
-            ref = closes[-2] if len(closes) >= 2 and daily and daily[-1]["day"] == date.today().isoformat() else closes[-1]
-        change = (price / ref - 1) * 100 if price and ref else None
-        out.append({"symbol": symbol, "label": label, "price": price, "change": change, "spark": closes,
+        price = latest["close"] if latest else (closes[-1][1] if closes else None)
+        # Reference closes: last full day (today's partial row excluded), then calendar lookbacks
+        full = [c for c in closes if c[0] < today.isoformat()] if latest else closes[:-1]
+        def ref(days_ago: int):
+            cutoff = (today - timedelta(days=days_ago)).isoformat()
+            return next((c for d, c in reversed(full) if d <= cutoff), None)
+        refs = {"1d": full[-1][1] if full else None, "5d": ref(5), "30d": ref(30)}
+        changes = {k: (price / v - 1) * 100 if price and v else None for k, v in refs.items()}
+        spark_since = (today - timedelta(days=spark_days)).isoformat()
+        out.append({"symbol": symbol, "label": LABELS.get(symbol, symbol), "price": price, "changes": changes,
+                    "spark": [c for d, c in closes if d >= spark_since],
                     "as_of": local(latest["ts_utc"]) if latest else None})
     return out
 
+
+def price_changes(symbols: list[str], days: int = 90) -> dict:
+    """Percent change from the first close in the window, one series per symbol."""
+    labels = days_back(days)
+    out = {}
+    for symbol in symbols:
+        closes = {r["day"]: r["close"] for r in rows("SELECT day, close FROM prices_daily WHERE symbol = ? AND day >= ?", symbol, labels[0])}
+        base = closes[min(closes)] if closes else None
+        last, series = None, []
+        for d in labels:
+            last = closes.get(d, last)
+            series.append(round((last / base - 1) * 100, 2) if last and base else None)
+        out[symbol] = series
+    return {"labels": labels, "series": out}
+
+
+def fmt_price(p: float | None) -> str:
+    if p is None:
+        return "–"
+    return f"{p:,.2f}" if p >= 10 else f"{p:.4f}"
+
+
+# Scores and tripwires
+
+def scores(days: int = 90) -> dict:
+    labels = days_back(days)
+    by_day = {r["day"]: r for r in rows("SELECT day, composite, military, economic, diplomatic, rhetoric FROM scores WHERE day >= ?", labels[0])}
+    pick = lambda col: [round(by_day[d][col]) if d in by_day else None for d in labels]
+    latest = by_day[max(by_day)] if by_day else None
+    return {"labels": labels, "composite": pick("composite"), "latest": latest,
+            "subs": {k: pick(k) for k in ("military", "economic", "diplomatic", "rhetoric")}}
+
+
+def tripwires(limit: int = 30) -> list[dict]:
+    out = rows("SELECT tripwire, fired_utc, severity, detail, url, alerted FROM tripwire_log ORDER BY fired_utc DESC LIMIT ?", limit)
+    for r in out:
+        r["when"] = local(r["fired_utc"])
+    return out
+
+
+# Items and notices
 
 def odds() -> list[dict]:
     return rows("SELECT question, probability, volume, ts_utc FROM market_odds m WHERE ts_utc = "
@@ -84,58 +147,37 @@ def advisories() -> list[dict]:
                 "ORDER BY country")
 
 
-def scores(days: int = 90) -> dict:
-    labels = days_back(days)
-    by_day = {r["day"]: r for r in rows("SELECT day, composite, military, economic, diplomatic, rhetoric FROM scores WHERE day >= ?", labels[0])}
-    pick = lambda col: [round(by_day[d][col]) if d in by_day else None for d in labels]
-    latest = by_day[max(by_day)] if by_day else None
-    return {"labels": labels, "composite": pick("composite"), "latest": latest,
-            "subs": {k: pick(k) for k in ("military", "economic", "diplomatic", "rhetoric")}}
-
-
-def price_changes(days: int = 90, symbols=("GC=F", "TSM", "BTC-USD")) -> dict:
-    """Percent change from the first close in the window, one series per symbol."""
-    labels = days_back(days)
-    out = {}
-    for symbol in symbols:
-        closes = {r["day"]: r["close"] for r in rows("SELECT day, close FROM prices_daily WHERE symbol = ? AND day >= ?", symbol, labels[0])}
-        base = closes[min(closes)] if closes else None
-        last = None
-        series = []
-        for d in labels:
-            last = closes.get(d, last)
-            series.append(round((last / base - 1) * 100, 2) if last and base else None)
-        out[symbol] = series
-    return {"labels": labels, "series": out}
-
-
-def tripwires(limit: int = 30) -> list[dict]:
-    out = rows("SELECT tripwire, fired_utc, severity, detail, url, alerted FROM tripwire_log ORDER BY fired_utc DESC LIMIT ?", limit)
-    for r in out:
-        r["when"] = local(r["fired_utc"], "%d %b %H:%M")
-    return out
-
-
 def sources() -> list[str]:
     return [r["source"] for r in rows("SELECT DISTINCT source FROM items ORDER BY source")]
 
 
-def items(source: str = "", show_all: bool = False, limit: int = 60) -> list[dict]:
-    sql = "SELECT source, url, title, published_utc, tags FROM items WHERE 1=1"
-    params = []
+def items(source: str = "", show_all: bool = False, q: str = "", limit: int = 60) -> list[dict]:
+    sql, params = "SELECT source, url, title, published_utc, tags FROM items WHERE 1=1", []
     if not show_all:
         sql += " AND relevant = 1"
     if source:
         sql += " AND source = ?"
         params.append(source)
+    if q:
+        sql += " AND title LIKE ?"
+        params.append(f"%{q}%")
     sql += " ORDER BY published_utc DESC LIMIT ?"
-    params.append(limit)
-    out = rows(sql, *params)
+    out = rows(sql, *params, limit)
     for r in out:
         r["when"] = local(r["published_utc"])
         r["tags"] = [t for t in r["tags"].split(",") if t]
     return out
 
+
+def notices(limit: int = 60) -> list[dict]:
+    out = rows("SELECT source, url, title, published_utc, tags FROM items WHERE source IN ('Japan MOD', 'Taiwan Coast Guard') "
+               "ORDER BY published_utc DESC LIMIT ?", limit)
+    for r in out:
+        r["when"] = local(r["published_utc"], "%d %b")
+    return out
+
+
+# System
 
 def jobs() -> dict:
     now = datetime.now(timezone.utc)
@@ -145,3 +187,15 @@ def jobs() -> dict:
         out[r["job"]] = {"last_run": local(r["last_run_utc"], "%Y-%m-%d %H:%M:%S"),
                          "age_seconds": int((now - last).total_seconds()), "ok": bool(r["ok"]), "message": r["message"]}
     return out
+
+
+def failures(limit: int = 20) -> list[dict]:
+    out = rows("SELECT job, ran_at_utc, message FROM job_failures ORDER BY ran_at_utc DESC LIMIT ?", limit)
+    for r in out:
+        r["when"] = local(r["ran_at_utc"], "%Y-%m-%d %H:%M")
+    return out
+
+
+def db_size_mb() -> float:
+    total = sum(p.stat().st_size for p in DB_PATH.parent.glob(DB_PATH.name + "*"))
+    return round(total / 1_048_576, 1)

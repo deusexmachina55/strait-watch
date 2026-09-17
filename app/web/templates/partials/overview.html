@@ -1,0 +1,163 @@
+{% set idx = scores.latest %}
+<section class="grid index">
+  <div class="card">
+    <h2>Tension index</h2>
+    {% if idx %}
+    <div class="hero {{ 'bad' if idx.composite >= 75 else ('warn' if idx.composite >= 60 else '') }}">{{ '%.0f' % idx.composite }}</div>
+    <div class="muted" style="margin-bottom:10px">0 to 100, 50 = baseline. As of {{ idx.day }}.</div>
+    {% for name in ['military', 'economic', 'diplomatic', 'rhetoric'] %}
+    <div class="sub">
+      <span class="sub-l">{{ name }}</span>
+      <span class="bar"><span style="width: {{ idx[name] }}%"></span></span>
+      <span class="sub-v">{{ '%.0f' % idx[name] }}</span>
+    </div>
+    {% endfor %}
+    {% else %}
+    <div class="muted">Not computed yet.</div>
+    {% endif %}
+  </div>
+  <div class="card">
+    <h2>Index, 90 days</h2>
+    <div class="chart"><canvas id="c-index"></canvas></div>
+  </div>
+  <div class="card">
+    <h2>Gold, TSM, BTC: change since 90 days ago</h2>
+    <div class="legend"><span><i style="background:var(--s4)"></i>Gold</span><span><i style="background:var(--s1)"></i>TSM</span><span><i style="background:var(--s2)"></i>BTC</span></div>
+    <div class="chart"><canvas id="c-changes"></canvas></div>
+  </div>
+</section>
+
+{% set latest = pla.latest %}
+<section class="tiles">
+  <div class="card tile">
+    <div class="l">PLA aircraft (MND, {{ latest.report_date[5:] if latest else 'no data' }})</div>
+    <div class="v">{{ latest.aircraft if latest else '–' }}</div>
+    <div class="s">{{ latest.aircraft_entered if latest else '–' }} entered airspace{% if latest and latest.median_line_crossed %}, median line crossed{% endif %}</div>
+  </div>
+  <div class="card tile">
+    <div class="l">PLA vessels (MND)</div>
+    <div class="v">{{ latest.navy_ships if latest else '–' }}</div>
+    <div class="s">+ {{ latest.official_ships if latest else '–' }} official ships{% if latest and latest.balloons %}, {{ latest.balloons }} balloons{% endif %}</div>
+  </div>
+  <div class="card tile">
+    <div class="l">MSA military warnings, 7 days</div>
+    <div class="v">{{ msa.last7 }}</div>
+    <div class="s">{{ msa.fujian7 }} in Fujian (Strait)</div>
+  </div>
+  <div class="card tile">
+    <div class="l">GDELT China-Taiwan, today (UTC)</div>
+    <div class="v">{{ gdelt.today.events if gdelt.today else 0 }}</div>
+    <div class="s">{{ gdelt.today.material_conflict if gdelt.today else 0 }} material conflict events</div>
+  </div>
+  {% for a in advisories %}
+  <div class="card tile">
+    <div class="l">US advisory: {{ a.country }}</div>
+    <div class="v {{ 'ok' if a.level == 1 else ('warn' if a.level == 2 else 'bad') }}">Level {{ a.level }}</div>
+    <div class="s">since {{ a.published_utc[:10] }}</div>
+  </div>
+  {% endfor %}
+</section>
+
+<section class="card">
+  <h2>Key prices <a class="muted" href="/markets" style="font-weight:400">(all markets)</a></h2>
+  <div class="prices">
+    {% for p in prices %}
+    <div class="price">
+      <div class="l">{{ p.label }}</div>
+      <div class="p">{{ fmt_price(p.price) }}</div>
+      {% set c = p.changes['1d'] %}
+      <div class="c {{ 'ok' if c and c > 0 else ('bad' if c and c < 0 else 'muted') }}">
+        {{ '%+.2f%%' % c if c is not none else '' }} <span class="muted">{{ p.as_of or '' }}</span>
+      </div>
+      <div class="spark-wrap"><canvas class="spark" data-values='{{ p.spark | tojson }}'></canvas></div>
+    </div>
+    {% endfor %}
+  </div>
+</section>
+
+<section class="grid">
+  <div class="card">
+    <h2>PLA aircraft per day (MND, 90 days)</h2>
+    <div class="legend"><span><i style="background:var(--s1)"></i>Detected</span><span><i style="background:var(--s2)"></i>Entered Taiwan airspace</span></div>
+    <div class="chart"><canvas id="c-aircraft"></canvas></div>
+  </div>
+  <div class="card">
+    <h2>PLA vessels per day (MND, 90 days)</h2>
+    <div class="legend"><span><i style="background:var(--s1)"></i>Navy</span><span><i style="background:var(--s3)"></i>Official ships</span></div>
+    <div class="chart"><canvas id="c-ships"></canvas></div>
+  </div>
+  <div class="card">
+    <h2>China MSA military navigation warnings per day (90 days)</h2>
+    <div class="legend">{% for s in msa.series %}<span><i style="background:var(--s{{ loop.index }})"></i>{{ s.region }}</span>{% endfor %}</div>
+    <div class="chart"><canvas id="c-msa"></canvas></div>
+  </div>
+  <div class="card">
+    <h2>GDELT China-Taiwan events per day (90 days)</h2>
+    <div class="legend"><span><i style="background:var(--s1)"></i>All events</span><span><i style="background:var(--s2)"></i>Material conflict</span></div>
+    <div class="chart"><canvas id="c-gdelt"></canvas></div>
+  </div>
+</section>
+
+<section class="grid" style="grid-template-columns: 1fr 1fr">
+  <div class="card">
+    <h2>Tripwires <a class="muted" href="/warnings" style="font-weight:400">(all)</a></h2>
+    <table>
+      <thead><tr><th>Time</th><th>Tripwire</th><th>Sev</th><th>Detail</th></tr></thead>
+      <tbody>
+      {% for t in tripwires %}
+      <tr>
+        <td class="nowrap muted">{{ t.when }}</td>
+        <td class="nowrap">{{ t.tripwire }}</td>
+        <td class="{{ 'bad' if t.severity >= 4 else 'warn' }}">{{ t.severity }}</td>
+        <td>{% if t.url %}<a href="{{ t.url }}" target="_blank" rel="noopener">{{ t.detail }}</a>{% else %}{{ t.detail }}{% endif %}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="4" class="muted">No tripwires fired.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div class="card">
+    <h2>Latest relevant items <a class="muted" href="/news" style="font-weight:400">(all news)</a></h2>
+    <table>
+      <tbody>
+      {% for it in items %}
+      <tr>
+        <td class="nowrap muted">{{ it.when }}</td>
+        <td class="nowrap">{{ it.source }}</td>
+        <td><a href="{{ it.url }}" target="_blank" rel="noopener">{{ it.title }}</a></td>
+      </tr>
+      {% else %}
+      <tr><td class="muted">No items yet.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<script>
+(() => {
+  const PLA = {{ pla | tojson }}, MSA = {{ msa | tojson }}, GDELT = {{ gdelt | tojson }};
+  const SCORES = {{ scores | tojson }}, CHANGES = {{ changes | tojson }};
+  line('c-index', SCORES.labels, [{ label: 'Index', data: SCORES.composite, borderColor: css('--s1') }], { min: 0, max: 100, beginAtZero: false });
+  line('c-changes', CHANGES.labels, [
+    { label: 'Gold', data: CHANGES.series['GC=F'], borderColor: css('--s4') },
+    { label: 'TSM', data: CHANGES.series['TSM'], borderColor: css('--s1') },
+    { label: 'BTC', data: CHANGES.series['BTC-USD'], borderColor: css('--s2') },
+  ], pct);
+  bars('c-aircraft', PLA.labels, [
+    { label: 'Detected', data: PLA.aircraft, backgroundColor: css('--s1') },
+    { label: 'Entered airspace', data: PLA.entered, backgroundColor: css('--s2') },
+  ], false);
+  bars('c-ships', PLA.labels, [
+    { label: 'Navy', data: PLA.navy, backgroundColor: css('--s1') },
+    { label: 'Official', data: PLA.official, backgroundColor: css('--s3') },
+  ], true);
+  bars('c-msa', MSA.labels, MSA.series.map((s, i) => ({ label: s.region, data: s.data, backgroundColor: css('--s' + (i + 1)) })), true);
+  line('c-gdelt', GDELT.labels, [
+    { label: 'All events', data: GDELT.events, borderColor: css('--s1') },
+    { label: 'Material conflict', data: GDELT.material, borderColor: css('--s2') },
+  ]);
+  sparks(document.getElementById('overview'));
+})();
+</script>

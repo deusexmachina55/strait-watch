@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="card">
+  <form class="toolbar" hx-get="/partials/news" hx-target="#news" hx-trigger="change, submit, keyup delay:400ms from:input, every 60s">
+    <select name="source">
+      <option value="">All sources</option>
+      {% for s in sources %}<option value="{{ s }}">{{ s }}</option>{% endfor %}
+    </select>
+    <input type="text" name="q" placeholder="Search titles" size="28">
+    <label><input type="checkbox" name="all" value="true"> show non-relevant too</label>
+    <select name="limit">
+      <option value="100">100 rows</option><option value="300">300 rows</option><option value="1000">1000 rows</option>
+    </select>
+    <span class="muted">Updates every minute. Feeds are polled every 15 minutes.</span>
+  </form>
+  <div id="news" class="refresh">{% include "partials/news.html" %}</div>
+</section>
+{% endblock %}

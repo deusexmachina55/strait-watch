@@ -59,8 +59,33 @@ name = "Xinhua"
 url = "https://news.google.com/rss/search?q=Taiwan+site:news.cn+when:2d&hl=en-US&gl=US&ceid=US:en"
 
 [prices]
-symbols = ["GC=F", "SI=F", "TSM", "2330.TW", "^SOX", "NVDA", "BTC-USD", "CNH=X", "DX-Y.NYB"]
-labels = ["Gold", "Silver", "TSM (ADR)", "TSMC 2330.TW", "SOX", "NVDA", "BTC", "USD/CNH", "DXY"]
+# Shown on the Overview page. The index itself uses TSM, ^SOX, GC=F and CNH=X only.
+overview = ["GC=F", "SI=F", "TSM", "2330.TW", "^SOX", "NVDA", "BTC-USD", "CNH=X", "DX-Y.NYB"]
+
+[[prices.groups]]
+name = "Taiwan and semiconductors"
+symbols = ["TSM", "2330.TW", "^TWII", "^SOX", "NVDA", "AMD", "INTC", "ASML"]
+labels = ["TSM (ADR)", "TSMC 2330.TW", "TAIEX", "SOX", "NVDA", "AMD", "INTC", "ASML"]
+
+[[prices.groups]]
+name = "Magnificent 7"
+symbols = ["AAPL", "MSFT", "GOOGL", "AMZN", "META", "TSLA", "NVDA"]
+labels = ["Apple", "Microsoft", "Alphabet", "Amazon", "Meta", "Tesla", "NVIDIA"]
+
+[[prices.groups]]
+name = "Commodities"
+symbols = ["GC=F", "SI=F", "PL=F", "CL=F", "HG=F"]
+labels = ["Gold", "Silver", "Platinum", "Crude oil (WTI)", "Copper"]
+
+[[prices.groups]]
+name = "Crypto"
+symbols = ["BTC-USD", "ETH-USD", "XRP-USD", "SOL-USD", "HYPE32196-USD", "BNB-USD"]
+labels = ["BTC", "ETH", "XRP", "SOL", "HYPE", "BNB"]
+
+[[prices.groups]]
+name = "FX"
+symbols = ["CNH=X", "DX-Y.NYB", "TWD=X", "JPY=X"]
+labels = ["USD/CNH", "DXY", "USD/TWD", "USD/JPY"]
 
 [gdelt]
 # Dyads counted in the GDELT 2.0 event files (actor country codes, order ignored)

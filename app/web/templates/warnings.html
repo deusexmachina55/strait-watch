@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block content %}
+<form class="toolbar" hx-get="/partials/warnings" hx-target="#warnings" hx-trigger="change, every 300s">
+  <span class="muted">MSA warnings:</span>
+  <select name="region">
+    <option value="">All regions</option>
+    {% for r in regions %}<option value="{{ r }}">{{ r }}</option>{% endfor %}
+  </select>
+  <label><input type="checkbox" name="military" value="true" checked> military only</label>
+  <span class="muted">Updates every 5 minutes.</span>
+</form>
+<div id="warnings" class="refresh">{% include "partials/warnings.html" %}</div>
+{% endblock %}
