@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Strait Watch</title>
+<style>
+  :root { color-scheme: dark; }
+  body { font-family: system-ui, sans-serif; background: #0f1419; color: #e6e6e6; max-width: 900px; margin: 2rem auto; padding: 0 1rem; }
+  h1 { margin-bottom: .25rem; }
+  .muted { color: #8a949e; }
+  .ok { color: #4caf50; }
+  .bad { color: #f44336; }
+  table { width: 100%; border-collapse: collapse; margin: 1rem 0; }
+  th, td { text-align: left; padding: .5rem; border-bottom: 1px solid #2a323b; }
+  button { padding: .5rem 1rem; background: #2a323b; color: #e6e6e6; border: 1px solid #3d4750; border-radius: 4px; cursor: pointer; }
+</style>
+</head>
+<body>
+<h1>Strait Watch</h1>
+<p class="muted">{{ time }}. Phase 1 placeholder dashboard.</p>
+
+<p>Status: <strong class="{{ 'ok' if status == 'ok' else 'bad' }}">{{ status }}</strong>
+  <span class="muted">(uptime {{ uptime_seconds }}s)</span></p>
+
+<table>
+  <tr><th>Job</th><th>Last run</th><th>Result</th><th>Message</th></tr>
+  {% for name, job in jobs.items() %}
+  <tr>
+    <td>{{ name }}</td>
+    <td>{{ job.last_run }}</td>
+    <td class="{{ 'ok' if job.ok else 'bad' }}">{{ 'ok' if job.ok else 'failed' }}</td>
+    <td>{{ job.message or '' }}</td>
+  </tr>
+  {% else %}
+  <tr><td colspan="4" class="muted">No job runs yet.</td></tr>
+  {% endfor %}
+</table>
+
+<button id="test-alert">Send Telegram test alert</button>
+<span id="result" class="muted"></span>
+
+<script>
+document.getElementById('test-alert').onclick = async () => {
+  const result = document.getElementById('result');
+  const r = await fetch('/api/test-alert', { method: 'POST', headers: { 'X-Requested-With': 'strait-watch' } });
+  result.textContent = r.ok ? 'Sent.' : `Failed (${r.status}).`;
+};
+</script>
+</body>
+</html>
