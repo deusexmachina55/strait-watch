@@ -84,6 +84,38 @@ def advisories() -> list[dict]:
                 "ORDER BY country")
 
 
+def scores(days: int = 90) -> dict:
+    labels = days_back(days)
+    by_day = {r["day"]: r for r in rows("SELECT day, composite, military, economic, diplomatic, rhetoric FROM scores WHERE day >= ?", labels[0])}
+    pick = lambda col: [round(by_day[d][col]) if d in by_day else None for d in labels]
+    latest = by_day[max(by_day)] if by_day else None
+    return {"labels": labels, "composite": pick("composite"), "latest": latest,
+            "subs": {k: pick(k) for k in ("military", "economic", "diplomatic", "rhetoric")}}
+
+
+def price_changes(days: int = 90, symbols=("GC=F", "TSM", "BTC-USD")) -> dict:
+    """Percent change from the first close in the window, one series per symbol."""
+    labels = days_back(days)
+    out = {}
+    for symbol in symbols:
+        closes = {r["day"]: r["close"] for r in rows("SELECT day, close FROM prices_daily WHERE symbol = ? AND day >= ?", symbol, labels[0])}
+        base = closes[min(closes)] if closes else None
+        last = None
+        series = []
+        for d in labels:
+            last = closes.get(d, last)
+            series.append(round((last / base - 1) * 100, 2) if last and base else None)
+        out[symbol] = series
+    return {"labels": labels, "series": out}
+
+
+def tripwires(limit: int = 30) -> list[dict]:
+    out = rows("SELECT tripwire, fired_utc, severity, detail, url, alerted FROM tripwire_log ORDER BY fired_utc DESC LIMIT ?", limit)
+    for r in out:
+        r["when"] = local(r["fired_utc"], "%d %b %H:%M")
+    return out
+
+
 def sources() -> list[str]:
     return [r["source"] for r in rows("SELECT DISTINCT source FROM items ORDER BY source")]
 

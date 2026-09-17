@@ -72,6 +72,7 @@ def dashboard(request: Request):
         "pla": data.pla(), "gdelt": data.gdelt(), "msa": data.msa(), "prices": data.prices(),
         "odds": data.odds(), "advisories": data.advisories(), "sources": data.sources(),
         "items": data.items(), "source": "", "show_all": False,
+        "scores": data.scores(), "changes": data.price_changes(), "tripwires": data.tripwires(),
     }
     return templates.TemplateResponse(request, "dashboard.html", ctx)
 

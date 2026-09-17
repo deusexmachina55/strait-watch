@@ -96,3 +96,120 @@ id = "36ea3354c8f84953aba082d6d989c750"
 search = "china taiwan"
 # Only events whose title matches all of these words (case-insensitive)
 title_must_contain = ["china", "taiwan"]
+
+[scoring]
+# Sub-score weights for the composite index
+weights = { military = 0.45, economic = 0.15, diplomatic = 0.25, rhetoric = 0.15 }
+# Points of score per standard deviation above baseline (50 = baseline)
+points_per_sigma = 15
+# Days of history before observed baselines fully replace the priors below
+prior_weight_days = 14
+
+# Prior mean/std used while an indicator has little history (typical 2024-2025 values)
+[scoring.priors]
+pla_aircraft = [15, 10]
+pla_entered = [10, 8]
+pla_navy = [7, 2]
+pla_official = [1, 1]
+msa_military = [2, 2]
+msa_fujian_military = [0.2, 0.5]
+gdelt_twn_material = [3, 3]
+gdelt_twn_verbal = [8, 5]
+gdelt_usa_material = [15, 10]
+japan_sightings = [0.5, 0.8]
+cga_incursions = [0.3, 0.6]
+items_military = [3, 3]
+items_diplomatic = [2, 2]
+items_economic = [1, 1.5]
+items_state_media = [1, 1.5]
+polymarket = [5, 2]
+tsm_5d = [0, 4]
+gold_5d = [0, 2.5]
+cnh_5d = [0, 0.6]
+sox_5d = [0, 4]
+
+# Indicators per sub-score with weights. Negative weight means a lower value raises the score.
+[scoring.subscores]
+military = { pla_aircraft = 1.0, pla_entered = 1.0, pla_navy = 0.7, pla_official = 0.3, msa_military = 0.7, msa_fujian_military = 1.0, gdelt_twn_material = 0.7, japan_sightings = 0.5, cga_incursions = 0.7 }
+economic = { tsm_5d = -1.0, sox_5d = -0.5, gold_5d = 1.0, cnh_5d = 1.0, items_economic = 0.5 }
+diplomatic = { gdelt_twn_verbal = 0.8, gdelt_usa_material = 0.6, items_diplomatic = 0.7, polymarket = 1.0, advisory = 1.0 }
+rhetoric = { items_state_media = 1.0, items_military = 0.7 }
+
+[tripwires]
+# Composite index thresholds that alert on crossing upward
+index_levels = [60, 75, 90]
+
+# Keyword tripwires match new relevant items (title + snippet). cooldown in hours.
+[[tripwires.keywords]]
+name = "named_exercise"
+severity = 5
+terms = ["Joint Sword", "Strait Thunder", "聯合利劍", "联合利剑", "海峽雷霆", "海峡雷霆"]
+cooldown = 24
+
+[[tripwires.keywords]]
+name = "blockade"
+severity = 5
+terms = ["blockade", "quarantine", "封鎖", "封锁", "隔离检疫"]
+require_context = true
+cooldown = 24
+
+[[tripwires.keywords]]
+name = "live_fire"
+severity = 4
+terms = ["live-fire", "live fire", "实弹", "實彈"]
+require_context = true
+cooldown = 24
+
+[[tripwires.keywords]]
+name = "no_fly_zone"
+severity = 4
+terms = ["no-fly zone", "no fly zone", "禁飛區", "禁飞区", "airspace closure"]
+require_context = true
+cooldown = 24
+
+[[tripwires.keywords]]
+name = "evacuation"
+severity = 5
+terms = ["evacuation advisory", "evacuate", "leave Taiwan", "撤僑", "撤侨"]
+require_context = true
+cooldown = 48
+
+[[tripwires.keywords]]
+name = "mobilization"
+severity = 4
+terms = ["reserve mobilization", "reservists", "mobilisation", "conscription", "動員令", "动员令"]
+require_context = true
+cooldown = 48
+
+# Indicator tripwires: fire when today's z-score exceeds sigma (or value exceeds absolute floor)
+[[tripwires.indicators]]
+name = "pla_aircraft_spike"
+indicator = "pla_aircraft"
+sigma = 2.0
+absolute = 45
+severity = 3
+cooldown = 24
+
+[[tripwires.indicators]]
+name = "pla_navy_spike"
+indicator = "pla_navy"
+sigma = 2.0
+absolute = 14
+severity = 3
+cooldown = 24
+
+[[tripwires.indicators]]
+name = "msa_fujian_military"
+indicator = "msa_fujian_military"
+sigma = 0
+absolute = 1
+severity = 3
+cooldown = 24
+
+[[tripwires.indicators]]
+name = "polymarket_jump"
+indicator = "polymarket"
+sigma = 2.5
+absolute = 15
+severity = 3
+cooldown = 24

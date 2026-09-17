@@ -74,6 +74,12 @@ strait-watch/
 - Tripwire fires -> Telegram alert, with per-tripwire cooldown.
 - Dashboard: index gauge, index vs gold/TSM/BTC overlay chart, tripwire log.
 
+### Phase 2b: Map (after Phase 3)
+- Leaflet served locally, OpenStreetMap tiles. No paid map APIs.
+- Layers: China MSA warning zones as polygons parsed from the warning detail text (live-fire and exercise zones highlighted), Japan Joint Staff sightings as markers on the named strait or passage, Taiwan Coast Guard incidents (Kinmen, Matsu), MND airspace sectors (north, central, southwest, east) shaded by aircraft count.
+- Time slider or day picker; tripwire hits shown on the map once Phase 3 exists.
+- No live ship or aircraft positions in v1 (AIS and ADS-B are v2).
+
 ### Phase 4: LLM layer
 - Chain: Gemini free tier -> Groq -> OpenRouter free models. Fall through on rate limit or error. Keys in .env.
 - Batch 20-30 filtered items per call. Strict JSON output: indicator category, severity 1-5, physical action vs rhetoric, novel vs rehash.

@@ -45,6 +45,14 @@
   details summary { cursor: pointer; color: var(--muted); }
   .legend { display: flex; gap: 12px; font-size: 12px; color: var(--text-2); margin-bottom: 4px; flex-wrap: wrap; }
   .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 4px; vertical-align: -1px; }
+  .index { grid-template-columns: minmax(220px, 1fr) 2fr 2fr; }
+  @media (max-width: 900px) { .index { grid-template-columns: 1fr; } }
+  .hero { font-size: 56px; font-weight: 600; line-height: 1; }
+  .sub { display: grid; grid-template-columns: 70px 1fr 30px; gap: 8px; align-items: center; font-size: 12px; margin: 4px 0; }
+  .sub-l { color: var(--muted); text-transform: capitalize; }
+  .sub-v { text-align: right; font-variant-numeric: tabular-nums; }
+  .bar { height: 8px; background: var(--grid); border-radius: 4px; overflow: hidden; }
+  .bar span { display: block; height: 100%; background: var(--s1); border-radius: 4px; }
 </style>
 </head>
 <body>
@@ -53,6 +61,35 @@
   <span class="muted">{{ time }}</span>
   <span>Service <strong class="{{ 'ok' if status == 'ok' else 'bad' }}">{{ status }}</strong></span>
 </header>
+
+{% set idx = scores.latest %}
+<section class="grid index">
+  <div class="card">
+    <h2>Tension index</h2>
+    {% if idx %}
+    <div class="hero {{ 'bad' if idx.composite >= 75 else ('warn' if idx.composite >= 60 else '') }}">{{ '%.0f' % idx.composite }}</div>
+    <div class="muted" style="margin-bottom:10px">0 to 100, 50 = baseline. As of {{ idx.day }}.</div>
+    {% for name in ['military', 'economic', 'diplomatic', 'rhetoric'] %}
+    <div class="sub">
+      <span class="sub-l">{{ name }}</span>
+      <span class="bar"><span style="width: {{ idx[name] }}%"></span></span>
+      <span class="sub-v">{{ '%.0f' % idx[name] }}</span>
+    </div>
+    {% endfor %}
+    {% else %}
+    <div class="muted">Not computed yet.</div>
+    {% endif %}
+  </div>
+  <div class="card">
+    <h2>Index, 90 days</h2>
+    <div class="chart"><canvas id="c-index"></canvas></div>
+  </div>
+  <div class="card">
+    <h2>Gold, TSM, BTC: change since 90 days ago</h2>
+    <div class="legend"><span><i style="background:var(--s4)"></i>Gold</span><span><i style="background:var(--s1)"></i>TSM</span><span><i style="background:var(--s2)"></i>BTC</span></div>
+    <div class="chart"><canvas id="c-changes"></canvas></div>
+  </div>
+</section>
 
 {% set latest = pla.latest %}
 <section class="tiles">
@@ -141,6 +178,26 @@
 </section>
 
 <section class="card" style="margin-bottom:12px">
+  <h2>Tripwire log</h2>
+  <table>
+    <thead><tr><th>Time (SGT)</th><th>Tripwire</th><th>Sev</th><th>Detail</th><th>Alert</th></tr></thead>
+    <tbody>
+    {% for t in tripwires %}
+    <tr>
+      <td class="nowrap muted">{{ t.when }}</td>
+      <td class="nowrap">{{ t.tripwire }}</td>
+      <td class="{{ 'bad' if t.severity >= 4 else 'warn' }}">{{ t.severity }}</td>
+      <td>{% if t.url %}<a href="{{ t.url }}" target="_blank" rel="noopener">{{ t.detail }}</a>{% else %}{{ t.detail }}{% endif %}</td>
+      <td class="{{ 'ok' if t.alerted else 'bad' }}">{{ 'sent' if t.alerted else 'failed' }}</td>
+    </tr>
+    {% else %}
+    <tr><td colspan="5" class="muted">No tripwires fired.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</section>
+
+<section class="card" style="margin-bottom:12px">
   <div class="toolbar">
     <h2 style="margin:0">Latest items</h2>
     <select name="source" hx-get="/items" hx-target="#items" hx-include="[name=all]">
@@ -169,6 +226,7 @@
 <script>
 const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
 const PLA = {{ pla | tojson }}, MSA = {{ msa | tojson }}, GDELT = {{ gdelt | tojson }};
+const SCORES = {{ scores | tojson }}, CHANGES = {{ changes | tojson }};
 const short = d => d.slice(5);
 Chart.defaults.color = css('--muted');
 Chart.defaults.borderColor = css('--grid');
@@ -201,6 +259,17 @@ new Chart(document.getElementById('c-gdelt'), {
   ].map(d => ({ ...d, borderWidth: 2, pointRadius: 0, pointHoverRadius: 4, spanGaps: true })) },
   options: base,
 });
+const line = (id, labels, datasets, yOpts) => new Chart(document.getElementById(id), {
+  type: 'line',
+  data: { labels: labels.map(short), datasets: datasets.map(d => ({ ...d, backgroundColor: d.borderColor, borderWidth: 2, pointRadius: 0, pointHoverRadius: 4, spanGaps: true })) },
+  options: { ...base, scales: { x: base.scales.x, y: { ...base.scales.y, ...yOpts } } },
+});
+line('c-index', SCORES.labels, [{ label: 'Index', data: SCORES.composite, borderColor: css('--s1') }], { min: 0, max: 100, beginAtZero: false });
+line('c-changes', CHANGES.labels, [
+  { label: 'Gold', data: CHANGES.series['GC=F'], borderColor: css('--s4') },
+  { label: 'TSM', data: CHANGES.series['TSM'], borderColor: css('--s1') },
+  { label: 'BTC', data: CHANGES.series['BTC-USD'], borderColor: css('--s2') },
+], { beginAtZero: false, ticks: { maxTicksLimit: 5, callback: v => v + '%' } });
 document.querySelectorAll('canvas.spark').forEach(c => {
   const v = JSON.parse(c.dataset.values);
   if (v.length < 2) return;

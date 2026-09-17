@@ -98,6 +98,28 @@ CREATE TABLE IF NOT EXISTS market_odds (
     PRIMARY KEY (market_id, ts_utc)
 );
 
+-- Phase 3: daily index and tripwire log
+CREATE TABLE IF NOT EXISTS scores (
+    day TEXT PRIMARY KEY,
+    composite REAL NOT NULL,
+    military REAL NOT NULL,
+    economic REAL NOT NULL,
+    diplomatic REAL NOT NULL,
+    rhetoric REAL NOT NULL,
+    details TEXT NOT NULL,
+    computed_utc TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS tripwire_log (
+    id INTEGER PRIMARY KEY,
+    tripwire TEXT NOT NULL,
+    fired_utc TEXT NOT NULL,
+    severity INTEGER NOT NULL,
+    detail TEXT NOT NULL,
+    url TEXT,
+    alerted INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS tripwire_fired ON tripwire_log (tripwire, fired_utc);
+
 -- Prices: 5-minute bars (rolling) and daily closes
 CREATE TABLE IF NOT EXISTS prices_intraday (
     symbol TEXT NOT NULL,

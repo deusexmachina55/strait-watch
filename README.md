@@ -4,7 +4,13 @@ Personal early-warning dashboard for China/Taiwan/US tension in the Taiwan Strai
 See SPEC.md for scope and DECISIONS.md for locked decisions and security requirements.
 
 ## Current phase
-Phase 2: collectors and dashboard. Phase 1 (service, basic auth, heartbeat, Telegram test) is done.
+Phase 3: scoring and tripwires. Phases 1 (service) and 2 (collectors, dashboard) are done.
+
+## Index and tripwires
+- The `scoring` job runs every 10 minutes. It builds daily indicator series (PLA counts, MSA military warnings, GDELT conflict events, Japan and Coast Guard sightings, tagged item counts, Polymarket odds, State Dept level, 5-day returns for TSM, SOX, gold and CNH), compares each day with its trailing 30-day and 90-day baseline, and writes sub-scores (military, economic, diplomatic, rhetoric) and a composite 0-100 index per day to the `scores` table. 50 means "at baseline", each standard deviation adds 15 points.
+- While an indicator has little history, a prior (typical 2024-2025 values in `config.toml`) stands in for the baseline and fades out over 14 days. MND history starts from install day, so PLA baselines are rough for the first month.
+- Tripwires (`config.toml` `[tripwires]`): keyword hits on relevant items from the last 48 hours (named exercise, blockade, live-fire, no-fly zone, evacuation, mobilization), indicator spikes (PLA aircraft or navy above 2 sigma or an absolute floor, any Fujian military navigation warning, Polymarket jump), PLA spike during a named exercise, and composite index crossing 60, 75 and 90. Each has a cooldown in hours. A hit sends a Telegram message and is written to `tripwire_log`, shown on the dashboard.
+- Weights, priors, thresholds and cooldowns are all in `config.toml`. Restart the service after editing.
 
 ## Data sources
 | Source | Job | Schedule | Notes |

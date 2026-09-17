@@ -1,11 +1,11 @@
 import logging
 from contextlib import closing
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 
-from app import db
+from app import db, scoring
 from app.collectors import advisories, coast_guard, gdelt, japan_mod, msa, mnd, polymarket, prices, rss
 from app.config import LOCAL_TZ
 
@@ -61,4 +61,6 @@ def start() -> None:
     add_job("coast_guard", coast_guard.run, hours=3)
     add_job("advisories", advisories.run, hours=6)
     add_job("polymarket", polymarket.run, hours=1)
+    # Index and tripwires, shortly after the collectors have had a chance to run
+    add_job("scoring", scoring.run, minutes=10, run_now=False, next_run_time=datetime.now(timezone.utc) + timedelta(minutes=2))
     scheduler.start()
