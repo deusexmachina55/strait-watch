@@ -12,7 +12,8 @@
 param(
     [string]$InterfaceAlias = '',
     [string]$LanSubnet = '',
-    [int]$Port = 8080
+    [int]$Port = 8080,
+    [switch]$Unattended   # print each system change but do not ask (used by installer\INSTALL.cmd)
 )
 $ErrorActionPreference = 'Stop'
 
@@ -42,7 +43,7 @@ $NssmZipSha256 = '99F5045FFFBFFB745D67FE3A065A953C4A3D9C253B868892D9B685B0EE7D07
 function Invoke-Step([string]$Title, [string]$Command) {
     Write-Host "`n== $Title ==" -ForegroundColor Cyan
     Write-Host $Command -ForegroundColor Yellow
-    if ((Read-Host 'Run this? [y/N]') -notmatch '^[yY]$') { throw "Aborted at: $Title" }
+    if (-not $Unattended -and (Read-Host 'Run this? [y/N]') -notmatch '^[yY]$') { throw "Aborted at: $Title" }
     & ([scriptblock]::Create($Command))
 }
 

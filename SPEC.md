@@ -99,7 +99,7 @@ strait-watch/
 
 ### Phase 7: Settings and packaging (added 2026-09-18)
 - Settings tab: all per-person secrets and the timezone managed in the browser, stored in the database, each with a live test. First start generates the admin password. `.env` becomes optional (imported once).
-- Packaging (built 2026-09-18, folder `installer\`): Build-Package.ps1 producing a zip with vendored Python, install.cmd bootstrap that installs PowerShell 7 and runs setup.ps1 (network auto-detected), upgrade.ps1, Export-ForSharing.ps1 that strips personal rows from a snapshot. Recipient restores it on the Backup page.
+- Packaging (built 2026-09-18): the `installer\` folder is the whole distributable. Build-Package.ps1 fills it with strait-watch.zip (program plus runtime), a shareable snapshot (personal rows stripped) and VERSION.txt. INSTALL.cmd does a one-pass install or upgrade (self-elevates, unpacks, installs prerequisites, runs setup.ps1 -Unattended, opens Settings). Optional .env next to INSTALL.cmd is imported on first start; the snapshot appears in the Restore list.
 
 ## Working agreement
 - Build only the phase asked for. Run it, test it, fix it, then commit and push.

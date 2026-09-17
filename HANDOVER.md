@@ -7,7 +7,7 @@ Read this first in a new session, after CLAUDE.md, SPEC.md and DECISIONS.md. It 
 - Backup tab (Phase 5) built and tested on a copy, committed, needs a restart to go live. The user sets destination (drive or UNC path), schedule and retention in the browser; settings live in the `settings` table because the service cannot write `config.toml`. A local drive folder needs Modify rights for `svc-straitwatch` (icacls); a UNC path needs `BACKUP_SMB_USER` and `BACKUP_SMB_PASS` in `.env`. Nothing runs until the user enables it and a destination passes "Test destination". Restore is on the same page and works without a restart (scheduler paused, integrity check, safety copy, SQLite online backup into the live DB); tested: 100 deleted rows came back.
 - Briefing tab (Phase 6) built and tested on a copy (a weekly brief generated via Groq in 7 s, grounded in the given numbers), committed, needs a restart. Briefs list shows the newest of each kind open, older ones collapsed, kind filter, last 40. Tab order now: Overview, Briefing, Signals, Markets, News, Warnings, Map, System, Backup.
 - Settings tab (Phase 7) built and tested on a copy, committed, needs a restart. Secrets moved from `.env` to the `settings` table (password PBKDF2-hashed); on the first start after the restart the app imports the user's `.env` values automatically, then `.env` is redundant. `setup.ps1` no longer prompts for secrets; a fresh install gets a generated password in `data\initial-password.txt`.
-- Packaging built in `installer\`: Build-Package.ps1 (zip with `.python` and `.venv`, about 300 MB, no data or secrets), install.cmd (admin bootstrap, installs pwsh 7, runs setup.ps1), upgrade.ps1 (snapshot, stop, replace, start), Export-ForSharing.ps1 (snapshot minus settings, keys, logs, briefs). setup.ps1 auto-detects interface and subnet from the default route. Only tested on this PC (build and export ran; install path untested on a second machine).
+- Installer (superseded the first version the same night): the `installer\` folder is the complete distributable. `Build-Package.ps1` writes `strait-watch.zip`, `strait-share-<date>.db` and `VERSION.txt` into it (all three gitignored). `INSTALL.cmd` self-elevates, unpacks to `C:\claudespace\strait-watch`, installs pwsh 7 via winget if missing, runs `setup.ps1 -Unattended`, copies an optional `.env` in and the snapshot into `dataackups\` so Restore lists it, opens Settings. Built and parse-checked here; not yet run on a second PC.
 - First morning digest with LLM assessment due 07:30 SGT on 2026-09-18.
 
 ## How the box is run
@@ -49,10 +49,11 @@ Read this first in a new session, after CLAUDE.md, SPEC.md and DECISIONS.md. It 
 - Wants originals plus English, not English only.
 
 ## Packaging
-- `installer\README.md` is the recipient's guide. The `.venv` is bound to `C:\claudespace\strait-watch`; install.cmd refuses any other path. `VERSION.txt` is written into the zip by the build (gitignored in the repo); `appersion.py` is the source of truth, shown on the System page.
-- A recipient needs their own free accounts (Telegram bot, Groq at least, aisstream optional); the Settings page walks them through it. Do not ship the developer's keys.
+- Sources in `installer\`: INSTALL.cmd, README.txt, sample.env, Build-Package.ps1. Build artifacts land in the same folder and are gitignored. Rebuild after every release-worthy commit; bump `appersion.py` first.
+- `setup.ps1 -Unattended` prints every elevated command but does not ask; interactive runs still ask. The `.venv` is bound to `C:\claudespace\strait-watch`.
+- A recipient needs their own free accounts (Telegram bot, Groq at least, aisstream optional); the Settings page or a filled `sample.env` handles it. Never ship the developer's keys or `.env`.
 
 ## Next steps, in order
 1. User restarts; changes nothing on Settings unless wanted (values imported from .env); sets the backup destination and runs "Backup now" once; presses "Weekly now" on Briefing.
-2. First real test of install.cmd on a second PC when the user has one; expect small fixes.
+2. First real test of INSTALL.cmd on a second PC when the user has one; expect small fixes.
 3. Tuning after two weeks of data: priors in `config.toml`, tripwire thresholds, MSA zone kinds.

@@ -85,7 +85,7 @@ Items are marked relevant when a keyword group matches together with a Taiwan co
 - Status of every integration is shown at the top of Settings and on the System page.
 
 ## Installing on another PC
-See `installer\README.md`. Short version: `installer\Build-Package.ps1` here makes `dist\strait-watch-<version>.zip`; on the target, unzip to `C:\claudespace\strait-watch` and run `installer\install.cmd` as administrator; then enter keys on the Settings page and optionally Restore a snapshot (made with `installer\Export-ForSharing.ps1`, which strips your settings and logs) on the Backup page. `installer\upgrade.ps1 -Zip <file>` upgrades in place.
+The `installer\` folder is the complete, self-contained installer. On this PC, `installer\Build-Package.ps1` refreshes it: `strait-watch.zip` (program with its Python runtime), `strait-share-<date>.db` (your history without settings, keys or logs) and `VERSION.txt`. Copy the whole folder to the target PC and double-click `INSTALL.cmd`: it elevates, unpacks to `C:\claudespace\strait-watch`, installs PowerShell 7, uv and NSSM if missing, runs `setup.ps1 -Unattended` (every system change printed, none asked), prints the login and opens the Settings page. Then: keys on Settings (or a filled-in `.env` next to `INSTALL.cmd`, imported on first start), and Restore the snapshot on Backup if wanted. Running `INSTALL.cmd` again from a newer folder upgrades in place. Details in `installer\README.txt`.
 
 ## Setup on this PC
 Run from an elevated prompt (Windows PowerShell 5.1 blocks scripts, so call pwsh explicitly). The interface and LAN subnet are auto-detected from the default route; pass `-InterfaceAlias` and `-LanSubnet` to override.
