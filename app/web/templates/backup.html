@@ -30,7 +30,7 @@
 <section class="card">
   <h2>Restore</h2>
   <form hx-post="/backup/restore" hx-target="#restore-result" hx-swap="innerHTML"
-        hx-confirm="Replace the live database with this snapshot? Data collected since the snapshot is lost (a safety copy of the current database is kept in dataackups).">
+        hx-confirm="Replace the live database with this snapshot? Data collected since the snapshot is lost (a safety copy of the current database is kept in data\backups).">
     <p><label>Snapshot<br>
       <select name="snapshot" style="max-width:100%">
         {% for s in snapshots %}<option value="{{ s.path }}">{{ s.when }} · {{ s.where }} · {{ s.size_mb }} MB · {{ s.path }}</option>{% else %}<option value="">No snapshots found yet</option>{% endfor %}
@@ -38,7 +38,7 @@
     <p><label>Or a path to any snapshot file<br><input type="text" name="path" size="60" placeholder="E:\strait-20260918-0230.db"></label></p>
     <p><button type="submit">Restore</button> <span id="restore-result" class="muted"></span></p>
   </form>
-  <p class="muted" style="font-size:12px">Restore runs without a restart: collectors pause, the snapshot is checked, a safety copy of the current database is written to <code>dataackups\</code>, the snapshot is copied into the live database, collectors resume. Reload the page afterwards.
+  <p class="muted" style="font-size:12px">Restore runs without a restart: collectors pause, the snapshot is checked, a safety copy of the current database is written to <code>data\backups\</code>, the snapshot is copied into the live database, collectors resume. Reload the page afterwards.
     On a fresh install: set the destination above, Test destination, then pick the newest snapshot here.</p>
 </section>
 {% endblock %}
