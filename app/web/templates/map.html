@@ -5,16 +5,19 @@
   <label>Day <input type="date" id="day" value="{{ time[:10] }}"></label>
   <label><input type="checkbox" id="all"> all 90 days</label>
   <span class="muted">|</span>
-  {% for id, label, on in [('zones', 'Closure zones', True), ('notices', 'Japan MOD and Coast Guard notices', True), ('ccg', 'Coast guard and naval ships', True), ('tankers', 'Tankers', True), ('ships', 'Other ships', False), ('mil', 'Military aircraft', True), ('civil', 'Civil aircraft', False), ('tracks', 'Tracks (12h)', True)] %}
+  {% for id, label, on in [('zones', 'Closure zones', True), ('notices', 'Japan MOD and Coast Guard notices', True), ('ccg', 'Coast guard and naval ships', True), ('tankers', 'Tankers', True), ('ships', 'Other ships', False), ('mil', 'Military aircraft', True), ('civil', 'Civil aircraft', False), ('tracks', 'Trails', True)] %}
   <label><input type="checkbox" class="layer" data-layer="{{ id }}" {{ 'checked' if on }}> {{ label }}</label>
   {% endfor %}
+  <label>over <select id="trail">
+    {% for m, label in [(10, '10 min'), (30, '30 min'), (60, '1 hour'), (360, '6 hours'), (720, '12 hours')] %}<option value="{{ m }}" {{ 'selected' if m == 60 }}>{{ label }}</option>{% endfor %}
+  </select></label>
   <span class="muted" id="stamp"></span>
 </div>
 <div id="map"></div>
 <p class="muted" style="font-size:12px;margin:8px 0 0">
   Zones from China MSA navigation warnings (red live-fire, orange exercise, yellow rocket debris). Ships from aisstream.io volunteer receivers, positions in the last 60 minutes;
   PLA Navy does not broadcast AIS, China Coast Guard usually does. Aircraft from adsb.lol, last 20 minutes; PLA aircraft do not broadcast ADS-B, US and Japanese ISR often do.
-  Live layers refresh every minute. Today: {{ mapsum.zones_today }} zones ({{ '{:,}'.format(mapsum.zone_area) }} km² near Taiwan), {{ mapsum.vessels_30m }} vessels seen in 30 min.
+  Trails are drawn from stored positions over the chosen window (ships at most one point per 30 s, aircraft one per poll); 12 hours of points are kept. The map refreshes every 30 seconds. Today: {{ mapsum.zones_today }} zones ({{ '{:,}'.format(mapsum.zone_area) }} km² near Taiwan), {{ mapsum.vessels_30m }} vessels seen in 30 min.
 </p>
 <script src="/static/leaflet.js"></script>
 <script>
@@ -43,12 +46,16 @@ const esc = s => (s || '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;',
 const icon = (ch, deg, color, size) => L.divIcon({ className: 'ico', html: `<span style="display:inline-block;color:${color};font-size:${size || 14}px;transform:rotate(${deg || 0}deg)">${ch}</span>`, iconSize: [16, 16], iconAnchor: [8, 8] });
 // Layer checkboxes and the "all 90 days" toggle are remembered in this browser
 const boxes = [...document.querySelectorAll('input.layer'), document.getElementById('all')];
+const trailSelect = document.getElementById('trail');
 try {
   const saved = JSON.parse(localStorage.getItem('sw-map-layers') || '{}');
   boxes.forEach(c => { const k = c.dataset.layer || c.id; if (k in saved) c.checked = saved[k]; });
+  if (saved.trail) trailSelect.value = saved.trail;
 } catch (e) {}
 function remember() {
-  try { localStorage.setItem('sw-map-layers', JSON.stringify(Object.fromEntries(boxes.map(c => [c.dataset.layer || c.id, c.checked])))); } catch (e) {}
+  const state = Object.fromEntries(boxes.map(c => [c.dataset.layer || c.id, c.checked]));
+  state.trail = trailSelect.value;
+  try { localStorage.setItem('sw-map-layers', JSON.stringify(state)); } catch (e) {}
 }
 function apply() {
   document.querySelectorAll('input.layer').forEach(c => { const g = groups[c.dataset.layer]; c.checked ? g.addTo(map) : map.removeLayer(g); });
@@ -56,7 +63,8 @@ function apply() {
 }
 async function load() {
   const all = document.getElementById('all').checked, day = document.getElementById('day').value;
-  const r = await fetch(`/api/map?${all ? '' : 'day=' + day}`);
+  const trail = document.querySelector('input.layer[data-layer=tracks]').checked ? trailSelect.value : 0;
+  const r = await fetch(`/api/map?trail=${trail}${all ? '' : '&day=' + day}`);
   if (!r.ok) return;
   const d = await r.json();
   Object.values(groups).forEach(g => g.clearLayers());
@@ -76,14 +84,15 @@ async function load() {
   d.aircraft.forEach(a => L.marker([a.lat, a.lon], { icon: icon('✈', (a.track || 0) - 45, a.military ? css('--crit') : css('--s1'), a.military ? 18 : 11) })
     .bindPopup(`<b>${esc(a.flight || a.hex)}</b> ${esc(a.type || '')}<br>${esc(a.desc || '')}${a.military ? ' (military)' : ''}<br>${a.alt != null ? a.alt + ' ft' : ''} ${a.gs != null ? Math.round(a.gs) + ' kn' : ''}<br>${a.age_min} min ago`)
     .addTo(a.military ? groups.mil : groups.civil));
-  d.tracks.forEach(t => L.polyline(t, { color: css('--text-2'), weight: 1, opacity: 0.6, dashArray: '3 4' }).addTo(groups.tracks));
+  d.tracks.forEach(t => L.polyline(t.points, { color: t.kind === 'a' ? (t.cls === 'military' ? css('--crit') : css('--s1')) : (CLS[t.cls] || CLS.other), weight: 1.5, opacity: 0.55 }).addTo(groups.tracks));
   document.getElementById('stamp').textContent = `${d.zones.length} zones, ${d.markers.length} notices, ${d.vessels.length} ships, ${d.aircraft.length} aircraft. Updated ${d.generated}`;
   apply();
 }
 document.getElementById('day').onchange = load;
 document.getElementById('all').onchange = load;
-document.querySelectorAll('input.layer').forEach(c => c.onchange = apply);
+trailSelect.onchange = () => { remember(); load(); };
+document.querySelectorAll('input.layer').forEach(c => c.onchange = c.dataset.layer === 'tracks' ? () => { apply(); load(); } : apply);
 load();
-setInterval(load, 60000);
+setInterval(load, 30000);
 </script>
 {% endblock %}

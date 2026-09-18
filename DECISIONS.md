@@ -21,8 +21,9 @@ SPEC.md is the spec. This file records decisions made after it was written. Wher
 - GDELT: raw 15-minute event export files from data.gdeltproject.org, not the DOC API. The API rate-limits the Dell's IP; the files have no limit and allow a 90-day backfill.
 - Reuters, USNI News, Global Times and Xinhua are read through Google News RSS. Reuters has no public feed, USNI blocks scrapers, the other two feeds are stale.
 - Map (2026-09-18): Leaflet vendored, Esri basemaps (Dark Gray with city labels by default, Light Gray, Ocean) plus OpenStreetMap, user-switchable; CARTO now requires a key. MSA zones parsed from Chinese-language detail pages only; English-titled entries are dead-link duplicates and are excluded from counts. AIS from aisstream.io, ADS-B from adsb.lol, both free, 7-day position retention.
+- Map trails (2026-09-18): every received position is stored (ships throttled to one point per 30 s), kept 12 hours, drawn over a user-selected window. No change to polling rates, so no extra load on the free feeds.
 - Watchdog (Phase 5 part) shipped with the map: Telegram alert when a job has no success within its allowed age, 12-hour cooldown.
-- Phase 5 backup (2026-09-18): destination, schedule and retention are set in the browser and stored in the database (service cannot write config.toml); restore runs in place via SQLite online backup with a safety copy first. NAS credentials go in .env.
+- Phase 5 backup (2026-09-18): destination, schedule and retention are set in the browser and stored in the database (service cannot write config.toml); restore runs in place via SQLite online backup with a safety copy first. NAS credentials are entered on the Settings page.
 - Phase 6 briefing (2026-09-18): weekly and monthly LLM briefs from pre-aggregated facts only, same free chain, with a 14-day outlook graded against the index afterwards. Labeled outlook, not forecast. No paid model. Metaculus rejected (needs an account token).
 - Settings (2026-09-18): per-install secrets (login, Telegram, LLM keys, aisstream, NAS credentials, timezone) live in the database and are managed on the Settings page so the app can be installed by someone else without editing files. Password stored as PBKDF2 hash. `.env` is imported once for existing installs, then redundant. Chat ID detection still uses getUpdates server side, never a browser URL.
 - Dropped: GDELT Global Frontpage Graph (unmaintained alpha), regional MSA "maritime news" pages (local port news), PLA Eastern Theater Command social media (fragile).
@@ -32,6 +33,6 @@ SPEC.md is the spec. This file records decisions made after it was written. Wher
 - GitHub auth via fine-grained PAT scoped to the strait-watch repo only. No full gh auth login.
 - NSSM service runs as local standard user svc-straitwatch, not LocalSystem. Modify rights on repo folder only.
 - Firewall: inbound TCP 8080, Private profile, remote address limited to the LAN subnet.
-- HTTP basic auth on dashboard and API, credentials in .env.
+- HTTP basic auth on dashboard and API; the login is stored as a PBKDF2 hash in the database and changed on the Settings page (was .env until 2026-09-18).
 - Show every elevated command before running it.
 - Telegram chat ID fetched via getUpdates from PowerShell, never via browser URL.

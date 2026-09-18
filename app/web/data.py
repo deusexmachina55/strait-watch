@@ -335,7 +335,7 @@ def map_summary() -> dict:
             "civil_now": latest[0]["civil"] if latest else None, "mil_now": latest[0]["military"] if latest else None, "vessels_30m": vessels}
 
 
-def map_data(day: str | None, days: int = 90) -> dict:
+def map_data(day: str | None, days: int = 90, trail_minutes: int = 60) -> dict:
     since = (date.today() - timedelta(days=days)).isoformat()
     now = datetime.now(timezone.utc)
     zones = rows("SELECT z.url, z.region, z.number, z.kind, z.sea_area, z.starts, z.ends, z.window, z.polygon, z.area_km2, w.title, w.title_en "
@@ -356,16 +356,21 @@ def map_data(day: str | None, days: int = 90) -> dict:
                             "severity": n["severity"], "lat": pos[0], "lon": pos[1]})
     recent = (now - timedelta(minutes=60)).isoformat(timespec="seconds")
     vessels = rows("SELECT mmsi, name, cls, lat, lon, sog, cog, ts_utc FROM ais_vessels WHERE ts_utc >= ?", recent)
-    aircraft = rows("SELECT hex, flight, type, desc, military, lat, lon, alt, gs, track, ts_utc FROM adsb_aircraft WHERE ts_utc >= ?",
-                    (now - timedelta(minutes=20)).isoformat(timespec="seconds"))
-    track_since = (now - timedelta(hours=12)).isoformat(timespec="seconds")
-    tracks = {}
-    for r in rows("SELECT t.mmsi AS id, t.lat, t.lon FROM ais_tracks t JOIN ais_vessels v ON v.mmsi = t.mmsi "
-                  "WHERE t.ts_utc >= ? AND v.cls IN ('coast_guard', 'military') ORDER BY t.mmsi, t.ts_utc", track_since):
-        tracks.setdefault(f"v{r['id']}", []).append([r["lat"], r["lon"]])
-    for r in rows("SELECT hex AS id, lat, lon FROM adsb_tracks WHERE ts_utc >= ? ORDER BY hex, ts_utc", track_since):
-        tracks.setdefault(f"a{r['id']}", []).append([r["lat"], r["lon"]])
+    air_recent = (now - timedelta(minutes=20)).isoformat(timespec="seconds")
+    aircraft = rows("SELECT hex, flight, type, desc, military, lat, lon, alt, gs, track, ts_utc FROM adsb_aircraft WHERE ts_utc >= ?", air_recent)
+    # Trails: one line per vessel or aircraft currently shown, over the chosen window
+    tracks = []
+    if trail_minutes:
+        track_since = (now - timedelta(minutes=min(trail_minutes, 12 * 60))).isoformat(timespec="seconds")
+        by_id = {}
+        for r in rows("SELECT t.mmsi AS id, v.cls, t.lat, t.lon FROM ais_tracks t JOIN ais_vessels v ON v.mmsi = t.mmsi "
+                      "WHERE t.ts_utc >= ? AND v.ts_utc >= ? ORDER BY t.mmsi, t.ts_utc", track_since, recent):
+            by_id.setdefault(("v", r["id"], r["cls"]), []).append([r["lat"], r["lon"]])
+        for r in rows("SELECT t.hex AS id, a.military, t.lat, t.lon FROM adsb_tracks t JOIN adsb_aircraft a ON a.hex = t.hex "
+                      "WHERE t.ts_utc >= ? AND a.ts_utc >= ? ORDER BY t.hex, t.ts_utc", track_since, air_recent):
+            by_id.setdefault(("a", r["id"], "military" if r["military"] else "civil"), []).append([r["lat"], r["lon"]])
+        tracks = [{"kind": kind, "cls": cls, "points": pts} for (kind, _id, cls), pts in by_id.items() if len(pts) > 1]
     for v in vessels + aircraft:
         v["age_min"] = int((now - datetime.fromisoformat(v["ts_utc"])).total_seconds() // 60)
     return {"day": day, "zones": zones, "markers": markers, "vessels": vessels, "aircraft": aircraft,
-            "tracks": [p for p in tracks.values() if len(p) > 1], "generated": local(now.isoformat(), "%H:%M:%S")}
+            "tracks": tracks, "generated": local(now.isoformat(), "%H:%M:%S")}

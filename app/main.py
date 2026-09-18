@@ -158,8 +158,8 @@ def map_page(request: Request):
 
 
 @app.get("/api/map")
-def map_api(day: str = "", days: int = 90):
-    return data.map_data(day or None, min(days, 365))
+def map_api(day: str = "", days: int = 90, trail: int = 60):
+    return data.map_data(day or None, min(days, 365), max(0, min(trail, 12 * 60)))
 
 
 def backup_ctx() -> dict:

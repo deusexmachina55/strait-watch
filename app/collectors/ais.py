@@ -21,8 +21,9 @@ URL = "wss://stream.aisstream.io/v0/stream"
 BOX = [[[20.5, 115.5], [27.5, 123.5]]]  # [[lat, lon] sw, [lat, lon] ne]
 FLAGGED = {"coast_guard", "military", "tanker", "law"}
 CCG = re.compile(r"HAI ?JING|CCG|COAST ?GUARD|海警|CHINA ?COAST|ZHONG ?GUO ?HAI ?JING", re.I)
-TRACK_MINUTES = 10
-RETENTION_DAYS = 7
+TRACK_SECONDS = 30      # closest spacing of stored track points, per vessel
+TRACK_HOURS = 12        # how long track points are kept (trails on the map)
+RETENTION_DAYS = 7      # how long the latest position of a vessel is kept
 
 
 def classify(name: str | None, ship_type: int | None, mmsi: int) -> str:
@@ -83,12 +84,12 @@ class Collector:
                     "ON CONFLICT(mmsi) DO UPDATE SET name = excluded.name, ship_type = excluded.ship_type, cls = excluded.cls, "
                     "lat = excluded.lat, lon = excluded.lon, sog = excluded.sog, cog = excluded.cog, ts_utc = excluded.ts_utc",
                     (mmsi, name, ship_type, cls, p["lat"], p["lon"], p["sog"], p["cog"], ts))
+                last = self.last_track.get(mmsi)
+                if not last or p["ts"] - last >= timedelta(seconds=TRACK_SECONDS):
+                    conn.execute("INSERT OR IGNORE INTO ais_tracks (mmsi, ts_utc, lat, lon, sog, cog) VALUES (?, ?, ?, ?, ?, ?)",
+                                 (mmsi, ts, p["lat"], p["lon"], p["sog"], p["cog"]))
+                    self.last_track[mmsi] = p["ts"]
                 if cls in FLAGGED:
-                    last = self.last_track.get(mmsi)
-                    if not last or p["ts"] - last >= timedelta(minutes=TRACK_MINUTES):
-                        conn.execute("INSERT OR IGNORE INTO ais_tracks (mmsi, ts_utc, lat, lon, sog, cog) VALUES (?, ?, ?, ?, ?, ?)",
-                                     (mmsi, ts, p["lat"], p["lon"], p["sog"], p["cog"]))
-                        self.last_track[mmsi] = p["ts"]
                     for zone in geo.zones_for(p["lat"], p["lon"]):
                         conn.execute("INSERT OR IGNORE INTO ais_sightings (day, mmsi, zone, cls) VALUES (?, ?, ?, ?)", (today, mmsi, zone, cls))
 
@@ -115,9 +116,9 @@ class Collector:
         with closing(db.connect()) as conn, conn:
             n = conn.execute("SELECT COUNT(*) FROM ais_vessels WHERE ts_utc >= ?",
                              ((now - timedelta(minutes=30)).isoformat(timespec="seconds"),)).fetchone()[0]
-            cutoff = (now - timedelta(days=RETENTION_DAYS)).isoformat(timespec="seconds")
-            conn.execute("DELETE FROM ais_tracks WHERE ts_utc < ?", (cutoff,))
-            conn.execute("DELETE FROM ais_vessels WHERE ts_utc < ?", (cutoff,))
+            conn.execute("DELETE FROM ais_tracks WHERE ts_utc < ?", ((now - timedelta(hours=TRACK_HOURS)).isoformat(timespec="seconds"),))
+            conn.execute("DELETE FROM ais_vessels WHERE ts_utc < ?", ((now - timedelta(days=RETENTION_DAYS)).isoformat(timespec="seconds"),))
+        self.last_track = {m: t for m, t in self.last_track.items() if now - t < timedelta(hours=1)}
         record("ais", True, f"{self.messages} messages/min, {n} vessels seen in 30 min")
         self.messages = 0
 
