@@ -35,5 +35,6 @@ Uninstall (administrator PowerShell 7)
   then delete C:\claudespace\strait-watch.
 
 Requirements
-  Windows 10 or 11, administrator rights, internet, a private LAN. The program must live at
+  Windows 10 or 11 with winget (App Installer; on a brand-new PC run Windows Update and open the
+  Microsoft Store once first), administrator rights, internet, a private LAN. The program must live at
   C:\claudespace\strait-watch (its bundled Python is bound to that path).

@@ -56,7 +56,7 @@ function Test-Service { [bool](Get-Service $ServiceName -ErrorAction SilentlyCon
 
 # 1. uv, repo-local Python, dependencies
 if (-not (Get-Command uv -ErrorAction SilentlyContinue)) {
-    Invoke-Step 'Install uv (winget)' 'winget install --id astral-sh.uv -e --disable-interactivity'
+    Invoke-Step 'Install uv (winget)' 'winget install --id astral-sh.uv -e --accept-source-agreements --accept-package-agreements --disable-interactivity'
     $env:Path = [Environment]::GetEnvironmentVariable('Path', 'Machine') + ';' + [Environment]::GetEnvironmentVariable('Path', 'User')
 }
 $env:UV_PYTHON_INSTALL_DIR = Join-Path $Root '.python'
@@ -80,7 +80,7 @@ if ((Get-NetConnectionProfile -InterfaceAlias $InterfaceAlias).NetworkCategory -
 $nssm = Join-Path $NssmDir 'nssm.exe'
 if (-not (Test-Path $nssm)) {
     if (-not (Get-WingetNssm)) {
-        Invoke-Step 'Install NSSM (winget, machine scope)' 'winget install --id NSSM.NSSM -e --scope machine --disable-interactivity'
+        Invoke-Step 'Install NSSM (winget, machine scope)' 'winget install --id NSSM.NSSM -e --scope machine --accept-source-agreements --accept-package-agreements --disable-interactivity'
     }
     $wingetNssm = Get-WingetNssm
     if ($wingetNssm) {
